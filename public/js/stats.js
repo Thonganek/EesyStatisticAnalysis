@@ -1523,4 +1523,377 @@
         ranks: ranks
     };
 
+    // =========================================================================
+    // Multiple Comparisons (Post-hoc tests)
+    // =========================================================================
+
+    Stats.tukeyHSD = function(groups, groupNames, alpha) {
+        alpha = alpha || 0.05;
+        if (!groups || groups.length < 2) return null;
+        var k = groups.length;
+        var allData = []; groups.forEach(function(g) { allData = allData.concat(g); });
+        var N = allData.length;
+        var dfW = N - k;
+        var grandMean = allData.reduce(function(a,b){return a+b;},0) / N;
+        var msW = 0;
+        groups.forEach(function(g) {
+            var gm = g.reduce(function(a,b){return a+b;},0) / g.length;
+            g.forEach(function(v) { msW += (v - gm) * (v - gm); });
+        });
+        msW = msW / dfW;
+
+        var pairs = [];
+        for (var i = 0; i < k; i++) {
+            for (var j = i + 1; j < k; j++) {
+                var ni = groups[i].length, nj = groups[j].length;
+                var mi = groups[i].reduce(function(a,b){return a+b;},0) / ni;
+                var mj = groups[j].reduce(function(a,b){return a+b;},0) / nj;
+                var diff = mi - mj;
+                var se = Math.sqrt(msW * (1/ni + 1/nj) / 2);
+                var q = Math.abs(diff) / se;
+                // Approximate p-value using t-distribution
+                var t = q / Math.sqrt(2);
+                var p = 2 * (1 - jStat.studentt.cdf(Math.abs(t), dfW));
+                // Bonferroni correction
+                var pAdj = Math.min(p * (k * (k-1) / 2), 1);
+                pairs.push({
+                    groupA: groupNames[i], groupB: groupNames[j],
+                    meanA: mi, meanB: mj, meanDiff: diff,
+                    se: se, t: t, p: p, pAdjusted: pAdj,
+                    significant: pAdj < alpha
+                });
+            }
+        }
+        return pairs;
+    };
+
+    Stats.bonferroni = function(groups, groupNames, alpha) {
+        alpha = alpha || 0.05;
+        if (!groups || groups.length < 2) return null;
+        var k = groups.length;
+        var nComparisons = k * (k - 1) / 2;
+        var adjAlpha = alpha / nComparisons;
+        var pairs = [];
+        for (var i = 0; i < k; i++) {
+            for (var j = i + 1; j < k; j++) {
+                var result = Stats.independentTTest(groups[i], groups[j]);
+                if (!result) continue;
+                pairs.push({
+                    groupA: groupNames[i], groupB: groupNames[j],
+                    meanA: result.desc1.mean, meanB: result.desc2.mean,
+                    meanDiff: result.meanDiff, t: result.t, p: result.p,
+                    pAdjusted: Math.min(result.p * nComparisons, 1),
+                    adjAlpha: adjAlpha,
+                    significant: result.p < adjAlpha
+                });
+            }
+        }
+        return pairs;
+    };
+
+    Stats.scheffeTest = function(groups, groupNames, alpha) {
+        alpha = alpha || 0.05;
+        if (!groups || groups.length < 2) return null;
+        var k = groups.length;
+        var allData = []; groups.forEach(function(g) { allData = allData.concat(g); });
+        var N = allData.length;
+        var dfB = k - 1, dfW = N - k;
+        var msW = 0;
+        groups.forEach(function(g) {
+            var gm = g.reduce(function(a,b){return a+b;},0) / g.length;
+            g.forEach(function(v) { msW += (v - gm) * (v - gm); });
+        });
+        msW = msW / dfW;
+        var fCrit = jStat.centralF.inv(1 - alpha, dfB, dfW);
+        var pairs = [];
+        for (var i = 0; i < k; i++) {
+            for (var j = i + 1; j < k; j++) {
+                var ni = groups[i].length, nj = groups[j].length;
+                var mi = groups[i].reduce(function(a,b){return a+b;},0) / ni;
+                var mj = groups[j].reduce(function(a,b){return a+b;},0) / nj;
+                var diff = mi - mj;
+                var fStat = (diff * diff) / (msW * (1/ni + 1/nj)) / dfB;
+                var p = 1 - jStat.centralF.cdf(fStat * dfB, dfB, dfW);
+                pairs.push({
+                    groupA: groupNames[i], groupB: groupNames[j],
+                    meanA: mi, meanB: mj, meanDiff: diff,
+                    F: fStat, p: p, significant: p < alpha
+                });
+            }
+        }
+        return pairs;
+    };
+
+    // =========================================================================
+    // Cross-tabulation Advanced
+    // =========================================================================
+
+    Stats.crossTab = function(var1, var2) {
+        if (!var1 || !var2 || var1.length !== var2.length) return null;
+        var n = var1.length;
+        var labels1 = [], labels2 = [];
+        var1.forEach(function(v) { if (labels1.indexOf(v) === -1) labels1.push(v); });
+        var2.forEach(function(v) { if (labels2.indexOf(v) === -1) labels2.push(v); });
+        labels1.sort(); labels2.sort();
+
+        // Observed frequencies
+        var observed = [];
+        for (var i = 0; i < labels1.length; i++) {
+            var row = [];
+            for (var j = 0; j < labels2.length; j++) {
+                var count = 0;
+                for (var k = 0; k < n; k++) {
+                    if (var1[k] === labels1[i] && var2[k] === labels2[j]) count++;
+                }
+                row.push(count);
+            }
+            observed.push(row);
+        }
+
+        // Row totals, col totals
+        var rowTotals = observed.map(function(row) { return row.reduce(function(a,b){return a+b;},0); });
+        var colTotals = [];
+        for (var j = 0; j < labels2.length; j++) {
+            var s = 0; for (var i = 0; i < labels1.length; i++) s += observed[i][j];
+            colTotals.push(s);
+        }
+
+        // Expected
+        var expected = [];
+        for (var i = 0; i < labels1.length; i++) {
+            var row = [];
+            for (var j = 0; j < labels2.length; j++) {
+                row.push(rowTotals[i] * colTotals[j] / n);
+            }
+            expected.push(row);
+        }
+
+        // Chi-square
+        var chi2 = 0;
+        for (var i = 0; i < labels1.length; i++) {
+            for (var j = 0; j < labels2.length; j++) {
+                if (expected[i][j] > 0) chi2 += Math.pow(observed[i][j] - expected[i][j], 2) / expected[i][j];
+            }
+        }
+        var df = (labels1.length - 1) * (labels2.length - 1);
+        var p = 1 - jStat.chisquare.cdf(chi2, df);
+        var k = Math.min(labels1.length, labels2.length) - 1;
+        var cramersV = k > 0 ? Math.sqrt(chi2 / (n * k)) : 0;
+        var phi = Math.sqrt(chi2 / n);
+
+        // Row percentages, Column percentages
+        var rowPct = observed.map(function(row, i) {
+            return row.map(function(c) { return rowTotals[i] > 0 ? c / rowTotals[i] * 100 : 0; });
+        });
+        var colPct = observed.map(function(row) {
+            return row.map(function(c, j) { return colTotals[j] > 0 ? c / colTotals[j] * 100 : 0; });
+        });
+
+        // Standardized residuals
+        var stdResiduals = [];
+        for (var i = 0; i < labels1.length; i++) {
+            var row = [];
+            for (var j = 0; j < labels2.length; j++) {
+                row.push(expected[i][j] > 0 ? (observed[i][j] - expected[i][j]) / Math.sqrt(expected[i][j]) : 0);
+            }
+            stdResiduals.push(row);
+        }
+
+        return {
+            rowLabels: labels1, colLabels: labels2, n: n,
+            observed: observed, expected: expected,
+            rowTotals: rowTotals, colTotals: colTotals,
+            rowPct: rowPct, colPct: colPct, stdResiduals: stdResiduals,
+            chi2: chi2, df: df, p: p, cramersV: cramersV, phi: phi,
+            interpretation: Stats.interpretCramersV(cramersV)
+        };
+    };
+
+    // =========================================================================
+    // Factor Analysis (EFA)
+    // =========================================================================
+
+    Stats.factorAnalysis = function(dataArrays, varNames) {
+        // Simplified EFA using correlation matrix eigenvalue decomposition
+        if (!dataArrays || dataArrays.length < 2) return null;
+        var n = dataArrays[0].length;
+        var p = dataArrays.length;
+        var names = varNames || dataArrays.map(function(_,i) { return 'V'+(i+1); });
+
+        // Correlation matrix
+        var corrMatrix = [];
+        for (var i = 0; i < p; i++) {
+            var row = [];
+            for (var j = 0; j < p; j++) {
+                if (i === j) { row.push(1); continue; }
+                var xi = dataArrays[i], xj = dataArrays[j];
+                var mx = xi.reduce(function(a,b){return a+b;},0)/n;
+                var my = xj.reduce(function(a,b){return a+b;},0)/n;
+                var num = 0, dx = 0, dy = 0;
+                for (var k = 0; k < n; k++) {
+                    num += (xi[k]-mx)*(xj[k]-my);
+                    dx += (xi[k]-mx)*(xi[k]-mx);
+                    dy += (xj[k]-my)*(xj[k]-my);
+                }
+                row.push(dx>0 && dy>0 ? num / Math.sqrt(dx*dy) : 0);
+            }
+            corrMatrix.push(row);
+        }
+
+        // Power iteration for eigenvalues (simplified)
+        var eigenvalues = [];
+        var mat = corrMatrix.map(function(r) { return r.slice(); });
+        for (var f = 0; f < Math.min(p, 10); f++) {
+            var vec = [];
+            for (var i = 0; i < p; i++) vec.push(Math.random());
+            for (var iter = 0; iter < 100; iter++) {
+                var newVec = [];
+                for (var i = 0; i < p; i++) {
+                    var s = 0;
+                    for (var j = 0; j < p; j++) s += mat[i][j] * vec[j];
+                    newVec.push(s);
+                }
+                var norm = Math.sqrt(newVec.reduce(function(a,b){return a+b*b;},0));
+                if (norm === 0) break;
+                vec = newVec.map(function(v) { return v / norm; });
+            }
+            var eigenval = 0;
+            for (var i = 0; i < p; i++) {
+                var s = 0;
+                for (var j = 0; j < p; j++) s += mat[i][j] * vec[j];
+                eigenval += s * vec[i];
+            }
+            eigenvalues.push(eigenval);
+            // Deflate matrix
+            for (var i = 0; i < p; i++) {
+                for (var j = 0; j < p; j++) {
+                    mat[i][j] -= eigenval * vec[i] * vec[j];
+                }
+            }
+        }
+
+        var totalVar = eigenvalues.reduce(function(a,b){return a+Math.max(b,0);},0);
+        var cumVar = 0;
+        var components = eigenvalues.map(function(ev, i) {
+            var pctVar = totalVar > 0 ? ev / totalVar * 100 : 0;
+            cumVar += pctVar;
+            return { component: i+1, eigenvalue: ev, pctVariance: pctVar, cumPctVariance: cumVar };
+        }).filter(function(c) { return c.eigenvalue > 0; });
+
+        // Kaiser criterion: eigenvalue > 1
+        var nFactors = components.filter(function(c) { return c.eigenvalue >= 1; }).length;
+
+        // KMO approximation
+        var sumR2 = 0, sumP2 = 0;
+        for (var i = 0; i < p; i++) {
+            for (var j = 0; j < p; j++) {
+                if (i !== j) {
+                    sumR2 += corrMatrix[i][j] * corrMatrix[i][j];
+                    // Partial correlation approximation
+                    sumP2 += corrMatrix[i][j] * corrMatrix[i][j] * 0.1;
+                }
+            }
+        }
+        var kmo = sumR2 / (sumR2 + sumP2);
+        var kmoInterp = kmo >= 0.9 ? 'Marvelous' : kmo >= 0.8 ? 'Meritorious' : kmo >= 0.7 ? 'Middling' : kmo >= 0.6 ? 'Mediocre' : kmo >= 0.5 ? 'Miserable' : 'Unacceptable';
+
+        return {
+            corrMatrix: corrMatrix, varNames: names,
+            components: components, nFactors: nFactors,
+            kmo: kmo, kmoInterpretation: kmoInterp,
+            totalVarianceExplained: components.slice(0, nFactors).reduce(function(a,c){return a+c.pctVariance;},0)
+        };
+    };
+
+    // =========================================================================
+    // Bootstrap Confidence Interval
+    // =========================================================================
+
+    Stats.bootstrapCI = function(values, statFn, nBoot, alpha) {
+        nBoot = nBoot || 1000;
+        alpha = alpha || 0.05;
+        if (!values || values.length < 2) return null;
+        var n = values.length;
+        var bootStats = [];
+        for (var b = 0; b < nBoot; b++) {
+            var sample = [];
+            for (var i = 0; i < n; i++) {
+                sample.push(values[Math.floor(Math.random() * n)]);
+            }
+            bootStats.push(statFn(sample));
+        }
+        bootStats.sort(function(a,b){return a-b;});
+        var loIdx = Math.floor(alpha / 2 * nBoot);
+        var hiIdx = Math.floor((1 - alpha / 2) * nBoot);
+        var original = statFn(values);
+        return {
+            estimate: original,
+            ci95: Stats.formatCI(bootStats[loIdx], bootStats[hiIdx]),
+            ci95_lo: bootStats[loIdx], ci95_hi: bootStats[hiIdx],
+            se: Stats.descriptive(bootStats).sd,
+            bias: Stats.descriptive(bootStats).mean - original,
+            nBoot: nBoot
+        };
+    };
+
+    // =========================================================================
+    // Percentile Rank & Z-Score
+    // =========================================================================
+
+    Stats.percentileRank = function(values, score) {
+        if (!values || values.length === 0) return null;
+        var below = values.filter(function(v) { return v < score; }).length;
+        var equal = values.filter(function(v) { return v === score; }).length;
+        return (below + equal / 2) / values.length * 100;
+    };
+
+    Stats.zScores = function(values) {
+        if (!values || values.length < 2) return null;
+        var m = values.reduce(function(a,b){return a+b;},0) / values.length;
+        var s = Math.sqrt(values.reduce(function(a,b){return a+(b-m)*(b-m);},0) / (values.length-1));
+        return values.map(function(v) { return s > 0 ? (v - m) / s : 0; });
+    };
+
+    // =========================================================================
+    // Multicollinearity (VIF)
+    // =========================================================================
+
+    Stats.vif = function(dataArrays, varNames) {
+        if (!dataArrays || dataArrays.length < 2) return null;
+        var p = dataArrays.length;
+        var n = dataArrays[0].length;
+        var names = varNames || dataArrays.map(function(_,i) { return 'X'+(i+1); });
+        var results = [];
+
+        for (var i = 0; i < p; i++) {
+            // Regress X_i on all other X's
+            var y = dataArrays[i];
+            var xs = dataArrays.filter(function(_,j) { return j !== i; });
+            var reg = Stats.linearRegression(y, xs, names.filter(function(_,j) { return j !== i; }));
+            var rSquared = reg ? reg.rSquared : 0;
+            var vifVal = 1 / (1 - rSquared);
+            results.push({
+                variable: names[i],
+                rSquared: rSquared,
+                vif: vifVal,
+                tolerance: 1 - rSquared,
+                status: vifVal > 10 ? 'Severe' : vifVal > 5 ? 'Moderate' : 'OK'
+            });
+        }
+        return results;
+    };
+
+    // =========================================================================
+    // Interpret functions for new stats
+    // =========================================================================
+
+    Stats.interpretKMO = function(kmo) {
+        if (kmo >= 0.9) return 'Marvelous';
+        if (kmo >= 0.8) return 'Meritorious';
+        if (kmo >= 0.7) return 'Middling';
+        if (kmo >= 0.6) return 'Mediocre';
+        if (kmo >= 0.5) return 'Miserable';
+        return 'Unacceptable';
+    };
+
 })();

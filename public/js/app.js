@@ -227,7 +227,13 @@
             'logistic-regression': 'logr',
             'assumption': 'asn',
             'reliability': 'rel',
-            'effect-size': 'cd'
+            'effect-size': 'cd',
+            'factor-analysis': 'efa',
+            'crosstab': 'ct',
+            'posthoc': 'ph',
+            'bootstrap': 'boot',
+            'zscore': 'zs',
+            'multicollinearity': 'vifp'
         };
     }
 
@@ -394,6 +400,15 @@
             {id: 'cd-or-var2-picker', filter: 'all', label: 'ตัวแปร Outcome'},
             {id: 'asn-norm-vars-picker', filter: 'numeric', label: 'เลือกตัวแปร'},
             {id: 'asn-vif-vars-picker', filter: 'numeric', label: 'เลือกตัวแปร (2+)'},
+            // SPSS/Stata Advanced
+            {id: 'efa-picker', filter: 'numeric', label: 'เลือกตัวแปร (3+)'},
+            {id: 'ct-var1-picker', filter: 'all', label: 'ตัวแปร 1 (แถว)'},
+            {id: 'ct-var2-picker', filter: 'all', label: 'ตัวแปร 2 (คอลัมน์)'},
+            {id: 'ph-dv-picker', filter: 'numeric', label: 'ตัวแปรตาม (DV)'},
+            {id: 'ph-iv-picker', filter: 'all', label: 'Factor'},
+            {id: 'boot-picker', filter: 'numeric', label: 'เลือกตัวแปร'},
+            {id: 'zs-picker', filter: 'numeric', label: 'เลือกตัวแปร'},
+            {id: 'vifp-picker', filter: 'numeric', label: 'เลือกตัวแปร (2+)'},
         ];
         pickerConfigs.forEach(function(cfg) {
             var el = document.getElementById(cfg.id);
@@ -934,6 +949,12 @@
                 case 'reliability': runReliability(); break;
                 case 'effect-cohen': runEffectCohen(); break;
                 case 'effect-odds': runEffectOdds(); break;
+                case 'factor-analysis': runFactorAnalysis(); break;
+                case 'crosstab': runCrossTab(); break;
+                case 'posthoc': runPostHoc(); break;
+                case 'bootstrap': runBootstrap(); break;
+                case 'zscore': runZScore(); break;
+                case 'multicollinearity': runVIF(); break;
                 default:
                     alert('Analysis type "' + type + '" is not yet implemented.');
             }
@@ -2636,6 +2657,281 @@
 
         state.results['cd'] = { data: mainRows, title: 'Odds Ratio', extras: extras };
         displayResults('cd');
+    }
+
+    // =========================================================================
+    // Factor Analysis (EFA)
+    // =========================================================================
+
+    function runFactorAnalysis() {
+        var vars = getCheckedVars('efa-picker');
+        if (vars.length < 3) { alert('กรุณาเลือกตัวแปรอย่างน้อย 3 ตัว'); return; }
+        var dataArrays = vars.map(function(v) { return getColumnData(v, true); });
+        var result = Stats.factorAnalysis(dataArrays, vars);
+        if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
+
+        // KMO & Bartlett's
+        var extras = [];
+        extras.push({
+            title: 'KMO & Sampling Adequacy',
+            data: [{ 'KMO': fmt(result.kmo), 'Interpretation': result.kmoInterpretation,
+                     'Suitable for FA': result.kmo >= 0.5 ? '✅ Yes' : '⚠️ No' }]
+        });
+
+        // Total Variance Explained
+        var varianceRows = result.components.map(function(c) {
+            return {
+                'Component': c.component, 'Eigenvalue': fmt(c.eigenvalue),
+                '% of Variance': fmt(c.pctVariance, 1), 'Cumulative %': fmt(c.cumPctVariance, 1),
+                'Extract': c.eigenvalue >= 1 ? '✓' : ''
+            };
+        });
+        extras.push({ title: 'Total Variance Explained', data: varianceRows });
+
+        // Summary
+        var summaryRows = [{
+            'Variables': vars.length, 'Factors Extracted (Kaiser)': result.nFactors,
+            'Total Variance Explained': fmt(result.totalVarianceExplained, 1) + '%',
+            'KMO': fmt(result.kmo)
+        }];
+
+        state.results['efa'] = { data: summaryRows, title: 'Factor Analysis Summary', extras: extras };
+        displayResults('efa');
+    }
+
+    // =========================================================================
+    // Cross Tabulation
+    // =========================================================================
+
+    function runCrossTab() {
+        var var1 = getPickerValue('ct-var1-picker', 'ct-var1');
+        var var2 = getPickerValue('ct-var2-picker', 'ct-var2');
+        if (!var1 || !var2) { alert('กรุณาเลือกตัวแปร 2 ตัว'); return; }
+
+        var data1 = state.data.map(function(row) { return row[var1]; });
+        var data2 = state.data.map(function(row) { return row[var2]; });
+        var result = Stats.crossTab(data1, data2);
+        if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
+
+        var opts = getChecked('ct-opt');
+        var extras = [];
+
+        // Observed frequencies table
+        var obsRows = [];
+        for (var i = 0; i < result.rowLabels.length; i++) {
+            var row = {};
+            row[var1] = result.rowLabels[i];
+            for (var j = 0; j < result.colLabels.length; j++) {
+                var cell = String(result.observed[i][j]);
+                if (opts.indexOf('rowpct') !== -1) cell += ' (' + fmt(result.rowPct[i][j], 1) + '%)';
+                row[result.colLabels[j]] = cell;
+            }
+            row['Total'] = result.rowTotals[i];
+            obsRows.push(row);
+        }
+        // Total row
+        var totalRow = {};
+        totalRow[var1] = 'Total';
+        for (var j = 0; j < result.colLabels.length; j++) totalRow[result.colLabels[j]] = result.colTotals[j];
+        totalRow['Total'] = result.n;
+        obsRows.push(totalRow);
+        extras.push({ title: 'Observed Frequencies', data: obsRows });
+
+        // Expected
+        if (opts.indexOf('expected') !== -1) {
+            var expRows = [];
+            for (var i = 0; i < result.rowLabels.length; i++) {
+                var row = {};
+                row[var1] = result.rowLabels[i];
+                for (var j = 0; j < result.colLabels.length; j++) {
+                    row[result.colLabels[j]] = fmt(result.expected[i][j], 1);
+                }
+                expRows.push(row);
+            }
+            extras.push({ title: 'Expected Frequencies', data: expRows });
+        }
+
+        // Std Residuals
+        if (opts.indexOf('residuals') !== -1) {
+            var resRows = [];
+            for (var i = 0; i < result.rowLabels.length; i++) {
+                var row = {};
+                row[var1] = result.rowLabels[i];
+                for (var j = 0; j < result.colLabels.length; j++) {
+                    row[result.colLabels[j]] = fmt(result.stdResiduals[i][j]);
+                }
+                resRows.push(row);
+            }
+            extras.push({ title: 'Standardized Residuals', data: resRows });
+        }
+
+        // Chi-square test result
+        var mainRows = [{
+            'Chi-Square (χ²)': fmt(result.chi2), 'df': result.df,
+            'p-value': Stats.formatPValue(result.p), 'Phi (φ)': fmt(result.phi),
+            "Cramer's V": fmt(result.cramersV), 'Effect': result.interpretation,
+            'N': result.n, 'Sig.': result.p < 0.05 ? '✓' : ''
+        }];
+
+        state.results['ct'] = { data: mainRows, title: 'Cross Tabulation — Chi-Square Test', extras: extras };
+        displayResults('ct');
+    }
+
+    // =========================================================================
+    // Multiple Comparisons (Post-hoc)
+    // =========================================================================
+
+    function runPostHoc() {
+        var dv = getPickerValue('ph-dv-picker', 'ph-dv');
+        var iv = getPickerValue('ph-iv-picker', 'ph-iv');
+        if (!dv || !iv) { alert('กรุณาเลือก DV และ IV'); return; }
+        var method = getSelectValue('ph-method') || 'tukey';
+
+        var split = splitByGroup(dv, iv);
+        var gNames = split.groupNames;
+        if (gNames.length < 3) { alert('ต้องมีอย่างน้อย 3 กลุ่ม'); return; }
+
+        var groups = gNames.map(function(name) { return split.groups[name]; });
+
+        var result;
+        if (method === 'tukey') result = Stats.tukeyHSD(groups, gNames);
+        else if (method === 'bonferroni') result = Stats.bonferroni(groups, gNames);
+        else result = Stats.scheffeTest(groups, gNames);
+
+        if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
+
+        var rows = result.map(function(r) {
+            return {
+                'Group A': r.groupA, 'Group B': r.groupB,
+                'Mean A': fmt(r.meanA), 'Mean B': fmt(r.meanB),
+                'Mean Diff': fmt(r.meanDiff),
+                't / F': fmt(r.t || r.F),
+                'p-value': Stats.formatPValue(r.p),
+                'p (adjusted)': Stats.formatPValue(r.pAdjusted || r.p),
+                'Sig.': r.significant ? '✓' : ''
+            };
+        });
+
+        var methodName = method === 'tukey' ? 'Tukey HSD' : method === 'bonferroni' ? 'Bonferroni' : 'Scheffe';
+        state.results['ph'] = { data: rows, title: 'Multiple Comparisons — ' + methodName };
+        displayResults('ph');
+    }
+
+    // =========================================================================
+    // Bootstrap CI
+    // =========================================================================
+
+    function runBootstrap() {
+        var vars = getCheckedVars('boot-picker');
+        if (vars.length === 0) { alert('กรุณาเลือกตัวแปร'); return; }
+        var statType = getSelectValue('boot-stat') || 'mean';
+        var nBoot = parseInt(document.getElementById('boot-n').value) || 1000;
+
+        var statFn;
+        var statLabel;
+        if (statType === 'mean') {
+            statFn = function(arr) { return arr.reduce(function(a,b){return a+b;},0) / arr.length; };
+            statLabel = 'Mean';
+        } else if (statType === 'median') {
+            statFn = function(arr) { var s = arr.slice().sort(function(a,b){return a-b;}); return s.length%2===0 ? (s[s.length/2-1]+s[s.length/2])/2 : s[Math.floor(s.length/2)]; };
+            statLabel = 'Median';
+        } else {
+            statFn = function(arr) { var m = arr.reduce(function(a,b){return a+b;},0)/arr.length; return Math.sqrt(arr.reduce(function(a,b){return a+(b-m)*(b-m);},0)/(arr.length-1)); };
+            statLabel = 'S.D.';
+        }
+
+        var rows = [];
+        vars.forEach(function(v) {
+            var values = getColumnData(v, true);
+            if (values.length < 2) return;
+            var result = Stats.bootstrapCI(values, statFn, nBoot);
+            if (!result) return;
+            rows.push({
+                'Variable': v, 'Statistic': statLabel,
+                'Estimate': fmt(result.estimate),
+                'Bootstrap S.E.': fmt(result.se),
+                'Bias': fmt(result.bias),
+                '95% CI': result.ci95,
+                'N Bootstrap': result.nBoot
+            });
+        });
+
+        state.results['boot'] = { data: rows, title: 'Bootstrap Confidence Interval (' + statLabel + ', B=' + nBoot + ')' };
+        displayResults('boot');
+    }
+
+    // =========================================================================
+    // Z-Score & Percentile
+    // =========================================================================
+
+    function runZScore() {
+        var vars = getCheckedVars('zs-picker');
+        if (vars.length === 0) { alert('กรุณาเลือกตัวแปร'); return; }
+
+        var extras = [];
+        var summaryRows = [];
+
+        vars.forEach(function(v) {
+            var values = getColumnData(v, true);
+            if (values.length < 2) return;
+            var zScores = Stats.zScores(values);
+            var desc = Stats.descriptive(values);
+
+            summaryRows.push({
+                'Variable': v, 'N': desc.n, 'Mean': fmt(desc.mean), 'S.D.': fmt(desc.sd),
+                'Min Z': fmt(Math.min.apply(null, zScores)),
+                'Max Z': fmt(Math.max.apply(null, zScores)),
+                'P25': fmt(desc.p25), 'P50 (Median)': fmt(desc.median), 'P75': fmt(desc.p75)
+            });
+
+            // Detailed z-scores (first 50 rows)
+            if (vars.length === 1) {
+                var detailRows = values.slice(0, 50).map(function(val, i) {
+                    return {
+                        'Row': i + 1, 'Value': fmt(val, 2), 'Z-Score': fmt(zScores[i]),
+                        'Percentile': fmt(Stats.percentileRank(values, val), 1) + '%'
+                    };
+                });
+                extras.push({ title: 'Z-Scores (first 50 rows)', data: detailRows });
+            }
+        });
+
+        state.results['zs'] = { data: summaryRows, title: 'Z-Score & Percentile Summary', extras: extras };
+        displayResults('zs');
+    }
+
+    // =========================================================================
+    // Multicollinearity (VIF)
+    // =========================================================================
+
+    function runVIF() {
+        var vars = getCheckedVars('vifp-picker');
+        if (vars.length < 2) { alert('กรุณาเลือกตัวแปรอย่างน้อย 2 ตัว'); return; }
+
+        var dataArrays = vars.map(function(v) { return getColumnData(v, true); });
+        var result = Stats.vif(dataArrays, vars);
+        if (!result) { alert('ไม่สามารถคำนวณ VIF ได้'); return; }
+
+        var rows = result.map(function(r) {
+            return {
+                'Variable': r.variable,
+                'R²': fmt(r.rSquared),
+                'Tolerance': fmt(r.tolerance),
+                'VIF': fmt(r.vif),
+                'Status': r.status
+            };
+        });
+
+        var hasIssue = result.some(function(r) { return r.vif > 5; });
+        var extras = [];
+        extras.push({
+            title: '', html: '<div class="detail-box"><strong>สรุป:</strong> ' +
+                (hasIssue ? '⚠️ พบ Multicollinearity — พิจารณาลบตัวแปรที่ VIF > 10 ออก' : '✅ ไม่พบปัญหา Multicollinearity (VIF ทุกตัว < 5)') +
+                '<br>เกณฑ์: VIF < 5 = OK, 5-10 = Moderate, > 10 = Severe</div>'
+        });
+
+        state.results['vifp'] = { data: rows, title: 'Multicollinearity Analysis (VIF)', extras: extras };
+        displayResults('vifp');
     }
 
     // =========================================================================

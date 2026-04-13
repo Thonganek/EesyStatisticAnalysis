@@ -157,6 +157,12 @@
                     <button class="menu-item" onclick="navigateTo('assumption')">Assumption Tests</button>
                     <button class="menu-item" onclick="navigateTo('reliability')">Reliability</button>
                     <button class="menu-item" onclick="navigateTo('effect-size')">Effect Size</button>
+                    <button class="menu-item" onclick="navigateTo('factor-analysis')">Factor Analysis (EFA)</button>
+                    <button class="menu-item" onclick="navigateTo('crosstab')">Cross Tabulation</button>
+                    <button class="menu-item" onclick="navigateTo('posthoc')">Multiple Comparisons</button>
+                    <button class="menu-item" onclick="navigateTo('bootstrap')">Bootstrap CI</button>
+                    <button class="menu-item" onclick="navigateTo('zscore')">Z-Score & Percentile</button>
+                    <button class="menu-item" onclick="navigateTo('multicollinearity')">Multicollinearity (VIF)</button>
                 </div>
             </div>
 
@@ -1869,6 +1875,246 @@
                 </div>
             </div>
         </div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: Factor Analysis (EFA)                         -->
+        <!-- ================================================== -->
+<div class="page" id="page-factor-analysis">
+    <h2 class="page-title">🔬 Factor Analysis (EFA)</h2>
+    <details class="stat-guide">
+        <summary>📖 เมื่อไหร่ควรใช้ Factor Analysis ?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ลดจำนวนตัวแปร หาโครงสร้างปัจจัย (Factor) ที่ซ่อนอยู่</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>ตัวแปร Numeric อย่างน้อย 3 ตัว</li><li>KMO >= 0.5</li><li>Bartlett's test มีนัยสำคัญ</li></ul>
+            <p><strong>ข้อมูลที่ต้องมี:</strong> ตัวแปรเชิงปริมาณหลายตัว (เช่น ข้อคำถามแบบสอบถาม)</p>
+            <p><strong>ตัวอย่าง:</strong> วิเคราะห์องค์ประกอบของแบบวัดความพึงพอใจ 20 ข้อ</p>
+        </div>
+    </details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables (3+)</label>
+            <select id="efa-vars" class="var-select" multiple style="display:none"></select>
+            <div id="efa-picker"></div>
+        </div>
+        <button class="btn btn-primary" onclick="runAnalysis('factor-analysis')">Run Factor Analysis</button>
+    </div>
+    <div id="efa-assumptions" class="assumption-container" style="display:none"></div>
+    <div id="efa-results" class="results-area">
+        <div id="efa-extras"></div>
+        <div id="efa-table"></div>
+        <div class="ai-section">
+            <div class="interp-options"><label class="form-label">📝 รูปแบบการแปลผล</label>
+                <select id="efa-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4 — เชิงวิชาการ (APA)</option>
+                    <option value="abstract">บทคัดย่อ</option><option value="explain">อธิบายง่าย</option>
+                </select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('efa')">🤖 AI วิเคราะห์ผล</button>
+            <div id="efa-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('efa')">📥 Excel</button>
+            <button class="btn btn-export" onclick="exportWord('efa')">📥 Word</button>
+        </div>
+    </div>
+</div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: Cross Tabulation                              -->
+        <!-- ================================================== -->
+<div class="page" id="page-crosstab">
+    <h2 class="page-title">📊 Cross Tabulation</h2>
+    <details class="stat-guide">
+        <summary>📖 เมื่อไหร่ควรใช้ Cross Tabulation ?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วิเคราะห์ความสัมพันธ์ตัวแปรเชิงกลุ่ม แสดง Observed, Expected, Row%, Col%, Residuals</p>
+            <p><strong>เงื่อนไข:</strong> ตัวแปรเชิงกลุ่ม 2 ตัว</p>
+            <p><strong>ตัวอย่าง:</strong> วิเคราะห์ เพศ x ระดับการศึกษา x ความพึงพอใจ</p>
+        </div>
+    </details>
+    <div class="card">
+        <div class="form-group"><label>Variable 1 (Row)</label>
+            <select id="ct-var1" class="var-select" style="display:none"></select>
+            <div id="ct-var1-picker"></div></div>
+        <div class="form-group"><label>Variable 2 (Column)</label>
+            <select id="ct-var2" class="var-select" style="display:none"></select>
+            <div id="ct-var2-picker"></div></div>
+        <div class="form-group"><label>แสดงผล</label>
+            <div class="checkbox-group">
+                <label class="checkbox-label"><input type="checkbox" name="ct-opt" value="rowpct" checked> Row %</label>
+                <label class="checkbox-label"><input type="checkbox" name="ct-opt" value="colpct" checked> Column %</label>
+                <label class="checkbox-label"><input type="checkbox" name="ct-opt" value="expected" checked> Expected</label>
+                <label class="checkbox-label"><input type="checkbox" name="ct-opt" value="residuals"> Std. Residuals</label>
+            </div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('crosstab')">Run Cross Tabulation</button>
+    </div>
+    <div id="ct-assumptions" class="assumption-container" style="display:none"></div>
+    <div id="ct-results" class="results-area">
+        <div id="ct-extras"></div><div id="ct-table"></div>
+        <div class="ai-section">
+            <div class="interp-options"><label class="form-label">📝 รูปแบบ</label>
+                <select id="ct-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option>
+                </select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('ct')">🤖 AI วิเคราะห์ผล</button>
+            <div id="ct-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('ct')">📥 Excel</button>
+            <button class="btn btn-export" onclick="exportWord('ct')">📥 Word</button>
+        </div>
+    </div>
+</div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: Multiple Comparisons (Post-hoc)              -->
+        <!-- ================================================== -->
+<div class="page" id="page-posthoc">
+    <h2 class="page-title">📐 Multiple Comparisons (Post-hoc)</h2>
+    <details class="stat-guide">
+        <summary>📖 เมื่อไหร่ควรใช้ Post-hoc ?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> เปรียบเทียบรายคู่หลัง ANOVA พบความแตกต่าง</p>
+            <p><strong>วิธีที่มี:</strong> Tukey HSD, Bonferroni, Scheffe</p>
+            <p><strong>ข้อมูล:</strong> ตัวแปรตาม (DV) + ตัวแปรกลุ่ม (Factor) 3+ กลุ่ม</p>
+        </div>
+    </details>
+    <div class="card">
+        <div class="form-group"><label>Dependent Variable (DV)</label>
+            <select id="ph-dv" class="var-select" style="display:none"></select>
+            <div id="ph-dv-picker"></div></div>
+        <div class="form-group"><label>Factor (IV)</label>
+            <select id="ph-iv" class="var-select" style="display:none"></select>
+            <div id="ph-iv-picker"></div></div>
+        <div class="form-group"><label>Method</label>
+            <select id="ph-method" class="form-select">
+                <option value="tukey" selected>Tukey HSD</option>
+                <option value="bonferroni">Bonferroni</option>
+                <option value="scheffe">Scheffe</option>
+            </select></div>
+        <button class="btn btn-primary" onclick="runAnalysis('posthoc')">Run Post-hoc</button>
+    </div>
+    <div id="ph-results" class="results-area">
+        <div id="ph-extras"></div><div id="ph-table"></div>
+        <div class="ai-section">
+            <div class="interp-options"><label class="form-label">📝 รูปแบบ</label>
+                <select id="ph-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option>
+                </select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('ph')">🤖 AI วิเคราะห์ผล</button>
+            <div id="ph-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('ph')">📥 Excel</button>
+            <button class="btn btn-export" onclick="exportWord('ph')">📥 Word</button>
+        </div>
+    </div>
+</div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: Bootstrap CI                                  -->
+        <!-- ================================================== -->
+<div class="page" id="page-bootstrap">
+    <h2 class="page-title">🔄 Bootstrap Confidence Interval</h2>
+    <details class="stat-guide">
+        <summary>📖 เมื่อไหร่ควรใช้ Bootstrap CI ?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ประมาณค่า CI โดยไม่ต้องสมมติการแจกแจง</p>
+            <p><strong>ข้อดี:</strong> ใช้ได้กับข้อมูลทุกรูปแบบ ไม่ต้องปกติ</p>
+            <p><strong>ตัวอย่าง:</strong> หา 95% CI ของค่าเฉลี่ย/ค่ามัธยฐาน เมื่อข้อมูลไม่ปกติ</p>
+        </div>
+    </details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables</label>
+            <select id="boot-vars" class="var-select" multiple style="display:none"></select>
+            <div id="boot-picker"></div></div>
+        <div class="form-group"><label>Statistic</label>
+            <select id="boot-stat" class="form-select">
+                <option value="mean" selected>Mean</option>
+                <option value="median">Median</option>
+                <option value="sd">S.D.</option>
+            </select></div>
+        <div class="form-group"><label>Number of Bootstrap Samples</label>
+            <input type="number" id="boot-n" class="form-input" value="1000" min="100" max="10000"></div>
+        <button class="btn btn-primary" onclick="runAnalysis('bootstrap')">Run Bootstrap</button>
+    </div>
+    <div id="boot-results" class="results-area">
+        <div id="boot-extras"></div><div id="boot-table"></div>
+        <div class="ai-section">
+            <div class="interp-options"><label class="form-label">📝 รูปแบบ</label>
+                <select id="boot-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option>
+                </select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('boot')">🤖 AI วิเคราะห์ผล</button>
+            <div id="boot-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('boot')">📥 Excel</button>
+            <button class="btn btn-export" onclick="exportWord('boot')">📥 Word</button>
+        </div>
+    </div>
+</div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: Z-Score & Percentile                          -->
+        <!-- ================================================== -->
+<div class="page" id="page-zscore">
+    <h2 class="page-title">📏 Z-Score & Percentile Rank</h2>
+    <details class="stat-guide">
+        <summary>📖 เมื่อไหร่ควรใช้ Z-Score ?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> แปลงค่าข้อมูลเป็นคะแนนมาตรฐาน และหาตำแหน่งเปอร์เซ็นไทล์</p>
+            <p><strong>ตัวอย่าง:</strong> เปรียบเทียบคะแนนสอบต่างวิชา, หาตำแหน่งสัมพัทธ์</p>
+        </div>
+    </details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables</label>
+            <select id="zs-vars" class="var-select" multiple style="display:none"></select>
+            <div id="zs-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('zscore')">Calculate Z-Scores</button>
+    </div>
+    <div id="zs-results" class="results-area">
+        <div id="zs-extras"></div><div id="zs-table"></div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('zs')">📥 Excel</button>
+        </div>
+    </div>
+</div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: Multicollinearity (VIF)                       -->
+        <!-- ================================================== -->
+<div class="page" id="page-multicollinearity">
+    <h2 class="page-title">📊 Multicollinearity Analysis (VIF)</h2>
+    <details class="stat-guide">
+        <summary>📖 เมื่อไหร่ควรใช้ VIF ?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ตรวจสอบ Multicollinearity ระหว่างตัวแปรอิสระก่อนทำ Regression</p>
+            <p><strong>เกณฑ์:</strong> VIF &lt; 5 = OK, VIF 5-10 = Moderate, VIF &gt; 10 = Severe</p>
+            <p><strong>ตัวอย่าง:</strong> ตรวจสอบก่อนวิเคราะห์ Multiple Regression</p>
+        </div>
+    </details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables (2+)</label>
+            <select id="vifp-vars" class="var-select" multiple style="display:none"></select>
+            <div id="vifp-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('multicollinearity')">Calculate VIF</button>
+    </div>
+    <div id="vifp-results" class="results-area">
+        <div id="vifp-extras"></div><div id="vifp-table"></div>
+        <div class="ai-section">
+            <div class="interp-options"><label class="form-label">📝 รูปแบบ</label>
+                <select id="vifp-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option>
+                </select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('vifp')">🤖 AI วิเคราะห์ผล</button>
+            <div id="vifp-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('vifp')">📥 Excel</button>
+            <button class="btn btn-export" onclick="exportWord('vifp')">📥 Word</button>
+        </div>
+    </div>
+</div>
 
         <!-- ================================================== -->
         <!-- PAGE: AI CHAT                                       -->
