@@ -96,100 +96,154 @@
         <!-- Navigation Menu -->
         <nav class="sidebar-nav">
 
-            <!-- Data Analysis -->
+            <!-- 1. Data & Descriptive -->
             <div class="menu-group open">
                 <div class="menu-group-header" onclick="toggleMenuGroup(this)">
-                    <span>📊 Data Analysis</span>
-                    <span class="menu-arrow">▾</span>
+                    <span>📊 Data & Descriptive</span><span class="menu-arrow">▾</span>
                 </div>
                 <div class="menu-group-items">
                     <button class="menu-item active" onclick="navigateTo('home')">Home</button>
                     <button class="menu-item" onclick="navigateTo('demographics')">ข้อมูลทั่วไป (Demographics)</button>
-                    <button class="menu-item" onclick="navigateTo('descriptive')">Descriptive</button>
-                    <button class="menu-item" onclick="navigateTo('numeric')">Numeric</button>
-                    <button class="menu-item" onclick="navigateTo('nominal')">Nominal</button>
-                    <button class="menu-item" onclick="navigateTo('likert')">Likert</button>
-                    <button class="menu-item" onclick="navigateTo('interval')">Interval</button>
-                    <button class="menu-item" onclick="navigateTo('outlier')">Outlier</button>
-                    <button class="menu-item" onclick="navigateTo('normality')">Normality</button>
+                    <button class="menu-item" onclick="navigateTo('descriptive')">Descriptive Statistics</button>
+                    <button class="menu-item" onclick="navigateTo('numeric')">Numeric Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('nominal')">Nominal / Frequency</button>
+                    <button class="menu-item" onclick="navigateTo('likert')">Likert Scale</button>
+                    <button class="menu-item" onclick="navigateTo('interval')">Interval / Class</button>
+                    <button class="menu-item" onclick="navigateTo('crosstab')">Cross Tabulation</button>
+                    <button class="menu-item" onclick="navigateTo('zscore')">Z-Score & Percentile</button>
+                    <button class="menu-item" onclick="navigateTo('missing')">Missing Value Analysis</button>
                 </div>
             </div>
 
-            <!-- Parametric Tests -->
+            <!-- 2. Data Screening -->
             <div class="menu-group">
                 <div class="menu-group-header" onclick="toggleMenuGroup(this)">
-                    <span>🔬 Parametric Tests</span>
-                    <span class="menu-arrow">▸</span>
+                    <span>🔍 Data Screening</span><span class="menu-arrow">▸</span>
                 </div>
                 <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('normality')">Normality Test</button>
+                    <button class="menu-item" onclick="navigateTo('outlier')">Outlier Detection</button>
+                    <button class="menu-item" onclick="navigateTo('assumption')">Assumption Tests</button>
+                    <button class="menu-item" onclick="navigateTo('multicollinearity')">Multicollinearity (VIF)</button>
+                    <button class="menu-item" onclick="navigateTo('runs-test')">Runs Test (Randomness)</button>
+                    <button class="menu-item" onclick="navigateTo('qqplot')">Q-Q Plot</button>
+                    <button class="menu-item" onclick="navigateTo('homogeneity')">Homogeneity of Variance</button>
+                </div>
+            </div>
+
+            <!-- 3. Parametric Tests -->
+            <div class="menu-group">
+                <div class="menu-group-header" onclick="toggleMenuGroup(this)">
+                    <span>🔬 Parametric Tests</span><span class="menu-arrow">▸</span>
+                </div>
+                <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('one-sample-ttest')">One-Sample t-test</button>
                     <button class="menu-item" onclick="navigateTo('independent-ttest')">Independent t-test</button>
                     <button class="menu-item" onclick="navigateTo('paired-ttest')">Paired t-test</button>
                     <button class="menu-item" onclick="navigateTo('oneway-anova')">One-way ANOVA</button>
+                    <button class="menu-item" onclick="navigateTo('welch-anova')">Welch ANOVA</button>
                     <button class="menu-item" onclick="navigateTo('twoway-anova')">Two-way ANOVA</button>
-                    <button class="menu-item" onclick="navigateTo('rm-anova')">RM-ANOVA</button>
+                    <button class="menu-item" onclick="navigateTo('rm-anova')">Repeated Measures ANOVA</button>
+                    <button class="menu-item" onclick="navigateTo('manova')">MANOVA</button>
                     <button class="menu-item" onclick="navigateTo('ancova')">ANCOVA</button>
                 </div>
             </div>
 
-            <!-- Non-Parametric Tests -->
+            <!-- 4. Non-Parametric Tests -->
             <div class="menu-group">
                 <div class="menu-group-header" onclick="toggleMenuGroup(this)">
-                    <span>📐 Non-Parametric Tests</span>
-                    <span class="menu-arrow">▸</span>
+                    <span>📐 Non-Parametric Tests</span><span class="menu-arrow">▸</span>
                 </div>
                 <div class="menu-group-items">
                     <button class="menu-item" onclick="navigateTo('mann-whitney')">Mann-Whitney U</button>
-                    <button class="menu-item" onclick="navigateTo('wilcoxon')">Wilcoxon</button>
-                    <button class="menu-item" onclick="navigateTo('kruskal-wallis')">Kruskal-Wallis</button>
+                    <button class="menu-item" onclick="navigateTo('wilcoxon')">Wilcoxon Signed-Rank</button>
+                    <button class="menu-item" onclick="navigateTo('sign-test')">Sign Test</button>
+                    <button class="menu-item" onclick="navigateTo('binomial-test')">Binomial Test</button>
+                    <button class="menu-item" onclick="navigateTo('kruskal-wallis')">Kruskal-Wallis H</button>
                     <button class="menu-item" onclick="navigateTo('friedman')">Friedman</button>
                     <button class="menu-item" onclick="navigateTo('chi-square')">Chi-Square</button>
+                    <button class="menu-item" onclick="navigateTo('fisher-exact')">Fisher's Exact Test</button>
+                    <button class="menu-item" onclick="navigateTo('mcnemar')">McNemar Test</button>
+                    <button class="menu-item" onclick="navigateTo('cochran-q')">Cochran's Q</button>
+                    <button class="menu-item" onclick="navigateTo('median-test')">Median Test</button>
+                    <button class="menu-item" onclick="navigateTo('ks2')">K-S 2-Sample</button>
                 </div>
             </div>
 
-            <!-- Advanced Analysis -->
+            <!-- 5. Post-hoc Comparisons -->
             <div class="menu-group">
                 <div class="menu-group-header" onclick="toggleMenuGroup(this)">
-                    <span>📈 Advanced Analysis</span>
-                    <span class="menu-arrow">▸</span>
+                    <span>🔄 Post-hoc Comparisons</span><span class="menu-arrow">▸</span>
                 </div>
                 <div class="menu-group-items">
-                    <button class="menu-item" onclick="navigateTo('correlation')">Correlation</button>
-                    <button class="menu-item" onclick="navigateTo('linear-regression')">Linear Regression</button>
-                    <button class="menu-item" onclick="navigateTo('logistic-regression')">Logistic Regression</button>
-                    <button class="menu-item" onclick="navigateTo('assumption')">Assumption Tests</button>
-                    <button class="menu-item" onclick="navigateTo('reliability')">Reliability</button>
-                    <button class="menu-item" onclick="navigateTo('effect-size')">Effect Size</button>
-                    <button class="menu-item" onclick="navigateTo('factor-analysis')">Factor Analysis (EFA)</button>
-                    <button class="menu-item" onclick="navigateTo('crosstab')">Cross Tabulation</button>
-                    <button class="menu-item" onclick="navigateTo('posthoc')">Multiple Comparisons</button>
-                    <button class="menu-item" onclick="navigateTo('bootstrap')">Bootstrap CI</button>
-                    <button class="menu-item" onclick="navigateTo('zscore')">Z-Score & Percentile</button>
-                    <button class="menu-item" onclick="navigateTo('multicollinearity')">Multicollinearity (VIF)</button>
-                    <button class="menu-item" onclick="navigateTo('partial-corr')">Partial Correlation</button>
-                    <button class="menu-item" onclick="navigateTo('hierarchical-reg')">Hierarchical Regression</button>
-                    <button class="menu-item" onclick="navigateTo('roc')">ROC Curve / AUC</button>
-                    <button class="menu-item" onclick="navigateTo('icc')">ICC</button>
-                    <button class="menu-item" onclick="navigateTo('split-half')">Split-Half Reliability</button>
-                    <button class="menu-item" onclick="navigateTo('mcnemar')">McNemar Test</button>
-                    <button class="menu-item" onclick="navigateTo('fisher-exact')">Fisher's Exact Test</button>
-                    <button class="menu-item" onclick="navigateTo('cochran-q')">Cochran's Q Test</button>
-                    <button class="menu-item" onclick="navigateTo('power-analysis')">Power Analysis</button>
-                    <button class="menu-item" onclick="navigateTo('welch-anova')">Welch ANOVA</button>
-                    <button class="menu-item" onclick="navigateTo('dunnett')">Dunnett's Test</button>
-                    <button class="menu-item" onclick="navigateTo('median-test')">Median Test</button>
-                    <button class="menu-item" onclick="navigateTo('runs-test')">Runs Test</button>
-                    <button class="menu-item" onclick="navigateTo('ks2')">K-S 2-Sample</button>
-                    <button class="menu-item" onclick="navigateTo('cluster')">Cluster Analysis</button>
-                    <button class="menu-item" onclick="navigateTo('discriminant')">Discriminant Analysis</button>
-                    <button class="menu-item" onclick="navigateTo('missing')">Missing Value Analysis</button>
-                    <button class="menu-item" onclick="navigateTo('qqplot')">Q-Q Plot</button>
-                    <button class="menu-item" onclick="navigateTo('survival')">Survival Analysis</button>
-                    <button class="menu-item" onclick="navigateTo('time-series')">Time Series</button>
+                    <button class="menu-item" onclick="navigateTo('posthoc')">Tukey / Bonferroni / Scheffe</button>
+                    <button class="menu-item" onclick="navigateTo('dunnett')">Dunnett's Test (vs Control)</button>
+                    <button class="menu-item" onclick="navigateTo('games-howell')">Games-Howell</button>
                 </div>
             </div>
 
-            <!-- AI Chat — Top Level -->
+            <!-- 6. Correlation & Regression -->
+            <div class="menu-group">
+                <div class="menu-group-header" onclick="toggleMenuGroup(this)">
+                    <span>📈 Correlation & Regression</span><span class="menu-arrow">▸</span>
+                </div>
+                <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('correlation')">Pearson / Spearman / Kendall</button>
+                    <button class="menu-item" onclick="navigateTo('partial-corr')">Partial Correlation</button>
+                    <button class="menu-item" onclick="navigateTo('linear-regression')">Simple Linear Regression</button>
+                    <button class="menu-item" onclick="navigateTo('multiple-regression')">Multiple Regression</button>
+                    <button class="menu-item" onclick="navigateTo('hierarchical-reg')">Hierarchical Regression</button>
+                    <button class="menu-item" onclick="navigateTo('logistic-regression')">Logistic Regression</button>
+                    <button class="menu-item" onclick="navigateTo('roc')">ROC Curve / AUC</button>
+                </div>
+            </div>
+
+            <!-- 7. Reliability & Validity -->
+            <div class="menu-group">
+                <div class="menu-group-header" onclick="toggleMenuGroup(this)">
+                    <span>✅ Reliability & Validity</span><span class="menu-arrow">▸</span>
+                </div>
+                <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('reliability')">Cronbach's Alpha</button>
+                    <button class="menu-item" onclick="navigateTo('split-half')">Split-Half Reliability</button>
+                    <button class="menu-item" onclick="navigateTo('icc')">ICC (Intraclass Correlation)</button>
+                    <button class="menu-item" onclick="navigateTo('kappa')">Cohen's Kappa</button>
+                    <button class="menu-item" onclick="navigateTo('factor-analysis')">Factor Analysis (EFA)</button>
+                    <button class="menu-item" onclick="navigateTo('cfa')">Confirmatory FA (CFA)</button>
+                    <button class="menu-item" onclick="navigateTo('item-analysis')">Item Analysis (Difficulty/Discrimination)</button>
+                </div>
+            </div>
+
+            <!-- 8. Effect Size & Sample Size -->
+            <div class="menu-group">
+                <div class="menu-group-header" onclick="toggleMenuGroup(this)">
+                    <span>📏 Effect Size & Sample Size</span><span class="menu-arrow">▸</span>
+                </div>
+                <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('effect-size')">Cohen's d / OR / RR</button>
+                    <button class="menu-item" onclick="navigateTo('bootstrap')">Bootstrap CI</button>
+                    <button class="menu-item" onclick="navigateTo('power-analysis')">Power Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('sample-size')">Sample Size Calculator</button>
+                </div>
+            </div>
+
+            <!-- 9. Multivariate & Advanced -->
+            <div class="menu-group">
+                <div class="menu-group-header" onclick="toggleMenuGroup(this)">
+                    <span>🧠 Multivariate & Advanced</span><span class="menu-arrow">▸</span>
+                </div>
+                <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('cluster')">Cluster Analysis (K-Means)</button>
+                    <button class="menu-item" onclick="navigateTo('discriminant')">Discriminant Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('survival')">Survival Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('time-series')">Time Series</button>
+                    <button class="menu-item" onclick="navigateTo('path-analysis')">Path Analysis</button>
+                </div>
+            </div>
+
+            <!-- Top Level -->
             <div class="sidebar-divider"></div>
+            <button class="menu-item menu-item-highlight" onclick="navigateTo('sample-size')" style="color:#dc2626;font-weight:700">🎯 คำนวณขนาดตัวอย่าง</button>
             <button class="menu-item menu-item-highlight" onclick="navigateTo('charts')">📊 Charts & Graphs</button>
             <button class="menu-item menu-item-highlight" onclick="navigateTo('ai-chat')">🤖 AI Statistical Chat</button>
             <button class="menu-item" onclick="navigateTo('ai-settings')">⚙️ AI Settings</button>
@@ -2632,6 +2686,380 @@
         <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="ts-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
             <button class="btn btn-ai" onclick="aiAnalyze('ts')">🤖 AI วิเคราะห์ผล</button><div id="ts-ai-result" class="ai-result-box" style="display:none"></div></div>
         <div class="export-area"><button class="btn btn-export" onclick="exportExcel('ts')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('ts')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: ONE-SAMPLE t-TEST                             -->
+<!-- ================================================== -->
+<div class="page" id="page-one-sample-ttest">
+    <h2 class="page-title">📊 One-Sample t-test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ทดสอบว่าค่าเฉลี่ยของกลุ่มตัวอย่างแตกต่างจากค่าที่กำหนด (Test Value) หรือไม่</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>ข้อมูลแจกแจงปกติ</li><li>ตัวแปรเชิงปริมาณ</li></ul>
+            <p><strong>ตัวอย่าง:</strong> ทดสอบว่าค่าเฉลี่ย IQ ของนักเรียนแตกต่างจาก 100 หรือไม่</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Variable</label>
+            <select id="ost-var" class="var-select" style="display:none"></select><div id="ost-var-picker"></div></div>
+        <div class="form-group"><label>Test Value (ค่าที่ต้องการเปรียบเทียบ)</label>
+            <input type="number" id="ost-testval" class="form-input" value="0" step="any"></div>
+        <div class="form-group"><label>Significance Level (Alpha)</label>
+            <select id="ost-alpha" class="var-select"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option><option value="0.10">0.10</option></select></div>
+        <button class="btn btn-primary" onclick="runAnalysis('one-sample-ttest')">Run Analysis</button>
+    </div>
+    <div id="ost-results" class="results-area"><div id="ost-extras"></div><div id="ost-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="ost-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('ost')">🤖 AI วิเคราะห์ผล</button><div id="ost-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('ost')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('ost')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: MANOVA                                        -->
+<!-- ================================================== -->
+<div class="page" id="page-manova">
+    <h2 class="page-title">📊 MANOVA (Multivariate ANOVA)</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> เปรียบเทียบค่าเฉลี่ยหลายตัวแปรตาม (DV) พร้อมกัน ระหว่างกลุ่ม</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>DV หลายตัว แจกแจงปกติแบบหลายตัวแปร</li><li>ความแปรปรวนร่วมเท่ากัน (Box's M)</li></ul>
+            <p><strong>ตัวอย่าง:</strong> เปรียบเทียบคะแนนวิชาคณิตฯ + วิทย์ + อังกฤษ ระหว่าง 3 โรงเรียน</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Dependent Variables (DV) — เลือก 2 ตัวขึ้นไป</label>
+            <select id="manova-dv" class="var-select" multiple style="display:none"></select><div id="manova-dv-picker"></div></div>
+        <div class="form-group"><label>Factor (IV)</label>
+            <select id="manova-iv" class="var-select" style="display:none"></select><div id="manova-iv-picker"></div></div>
+        <div class="form-group"><label>Alpha</label>
+            <select id="manova-alpha" class="var-select"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option></select></div>
+        <button class="btn btn-primary" onclick="runAnalysis('manova')">Run MANOVA</button>
+    </div>
+    <div id="manova-results" class="results-area"><div id="manova-extras"></div><div id="manova-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="manova-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('manova')">🤖 AI วิเคราะห์ผล</button><div id="manova-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('manova')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('manova')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: SIGN TEST                                     -->
+<!-- ================================================== -->
+<div class="page" id="page-sign-test">
+    <h2 class="page-title">📐 Sign Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ทดสอบทิศทางความแตกต่างก่อน-หลัง (ดีขึ้น/แย่ลง) โดยไม่สนขนาดผลต่าง</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>ข้อมูลจับคู่ (Paired)</li><li>ไม่ต้องการสมมติฐานเรื่องการแจกแจง</li></ul>
+            <p><strong>ตัวอย่าง:</strong> ทดสอบว่าคะแนนหลังเรียนดีขึ้นจากก่อนเรียนหรือไม่</p>
+            <p><strong>หมายเหตุ:</strong> เรียบง่ายกว่า Wilcoxon — ใช้เมื่อข้อมูลเป็น Ordinal หรือมี Outlier มาก</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Before (Variable 1)</label>
+            <select id="sign-before" class="var-select" style="display:none"></select><div id="sign-before-picker"></div></div>
+        <div class="form-group"><label>After (Variable 2)</label>
+            <select id="sign-after" class="var-select" style="display:none"></select><div id="sign-after-picker"></div></div>
+        <div class="form-group"><label>Alpha</label>
+            <select id="sign-alpha" class="var-select"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option></select></div>
+        <button class="btn btn-primary" onclick="runAnalysis('sign-test')">Run Sign Test</button>
+    </div>
+    <div id="sign-results" class="results-area"><div id="sign-extras"></div><div id="sign-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="sign-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('sign')">🤖 AI วิเคราะห์ผล</button><div id="sign-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('sign')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('sign')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: BINOMIAL TEST                                 -->
+<!-- ================================================== -->
+<div class="page" id="page-binomial-test">
+    <h2 class="page-title">📐 Binomial Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ทดสอบว่าสัดส่วนที่สังเกตได้แตกต่างจากสัดส่วนที่คาดหวังหรือไม่</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>ตัวแปรมี 2 ค่า (Binary: สำเร็จ/ไม่สำเร็จ, ใช่/ไม่ใช่)</li></ul>
+            <p><strong>ตัวอย่าง:</strong> ทดสอบว่าอัตราการสอบผ่าน 70% แตกต่างจาก 50% หรือไม่</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Variable (Binary 0/1)</label>
+            <select id="binom-var" class="var-select" style="display:none"></select><div id="binom-var-picker"></div></div>
+        <div class="form-group"><label>Expected Proportion (สัดส่วนที่คาดหวัง)</label>
+            <input type="number" id="binom-p" class="form-input" value="0.50" step="0.01" min="0.01" max="0.99"></div>
+        <div class="form-group"><label>Alpha</label>
+            <select id="binom-alpha" class="var-select"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option></select></div>
+        <button class="btn btn-primary" onclick="runAnalysis('binomial-test')">Run Binomial Test</button>
+    </div>
+    <div id="binom-results" class="results-area"><div id="binom-extras"></div><div id="binom-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="binom-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('binom')">🤖 AI วิเคราะห์ผล</button><div id="binom-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('binom')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('binom')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: GAMES-HOWELL                                  -->
+<!-- ================================================== -->
+<div class="page" id="page-games-howell">
+    <h2 class="page-title">🔄 Games-Howell Post-hoc Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> เปรียบเทียบรายคู่เมื่อความแปรปรวนไม่เท่ากัน</p>
+            <p><strong>ใช้หลัง:</strong> Welch ANOVA หรือเมื่อ Levene's test มีนัยสำคัญ</p>
+            <p><strong>ตัวอย่าง:</strong> เปรียบเทียบคะแนนรายคู่ 3 กลุ่ม ที่มี SD ต่างกันมาก</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>DV</label><select id="gh-dv" class="var-select" style="display:none"></select><div id="gh-dv-picker"></div></div>
+        <div class="form-group"><label>Factor</label><select id="gh-iv" class="var-select" style="display:none"></select><div id="gh-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('games-howell')">Run Games-Howell</button>
+    </div>
+    <div id="gh-results" class="results-area"><div id="gh-extras"></div><div id="gh-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="gh-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('gh')">🤖 AI วิเคราะห์ผล</button><div id="gh-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('gh')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('gh')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: MULTIPLE REGRESSION                           -->
+<!-- ================================================== -->
+<div class="page" id="page-multiple-regression">
+    <h2 class="page-title">📈 Multiple Regression</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> พยากรณ์ตัวแปรตามจากตัวแปรอิสระหลายตัว</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>DV เป็นตัวเลขต่อเนื่อง</li><li>ความสัมพันธ์เชิงเส้น</li><li>ไม่มี Multicollinearity</li></ul>
+            <p><strong>ตัวอย่าง:</strong> พยากรณ์ GPA จากชั่วโมงอ่านหนังสือ + แรงจูงใจ + IQ</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Dependent Variable (DV)</label>
+            <select id="mreg-dv" class="var-select" style="display:none"></select><div id="mreg-dv-picker"></div></div>
+        <div class="form-group"><label>Independent Variables (IVs) — เลือก 2+ ตัว</label>
+            <select id="mreg-iv" class="var-select" multiple style="display:none"></select><div id="mreg-iv-picker"></div></div>
+        <div class="form-group"><label>Method</label>
+            <select id="mreg-method" class="form-select"><option value="enter" selected>Enter (ใส่ทุกตัว)</option><option value="stepwise">Stepwise</option><option value="forward">Forward</option><option value="backward">Backward</option></select></div>
+        <button class="btn btn-primary" onclick="runAnalysis('multiple-regression')">Run Regression</button>
+    </div>
+    <div id="mreg-results" class="results-area"><div id="mreg-extras"></div><div id="mreg-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="mreg-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('mreg')">🤖 AI วิเคราะห์ผล</button><div id="mreg-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('mreg')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('mreg')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: COHEN'S KAPPA                                 -->
+<!-- ================================================== -->
+<div class="page" id="page-kappa">
+    <h2 class="page-title">✅ Cohen's Kappa</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วัดความสอดคล้องระหว่างผู้ประเมิน 2 คน (Inter-rater Agreement)</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>ตัวแปรเชิงกลุ่ม (Categorical)</li><li>ผู้ประเมิน 2 คน ประเมินชุดเดียวกัน</li></ul>
+            <p><strong>เกณฑ์แปลผล:</strong> &lt;0.20 เห็นด้วยน้อย, 0.21-0.40 พอใช้, 0.41-0.60 ปานกลาง, 0.61-0.80 ดี, 0.81-1.00 ดีมาก</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Rater 1 (ผู้ประเมินคนที่ 1)</label>
+            <select id="kap-r1" class="var-select" style="display:none"></select><div id="kap-r1-picker"></div></div>
+        <div class="form-group"><label>Rater 2 (ผู้ประเมินคนที่ 2)</label>
+            <select id="kap-r2" class="var-select" style="display:none"></select><div id="kap-r2-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('kappa')">Run Cohen's Kappa</button>
+    </div>
+    <div id="kap-results" class="results-area"><div id="kap-extras"></div><div id="kap-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="kap-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('kap')">🤖 AI วิเคราะห์ผล</button><div id="kap-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('kap')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('kap')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: CFA (Confirmatory Factor Analysis)            -->
+<!-- ================================================== -->
+<div class="page" id="page-cfa">
+    <h2 class="page-title">✅ Confirmatory Factor Analysis (CFA)</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ยืนยันโครงสร้างองค์ประกอบของแบบวัดที่กำหนดไว้ล่วงหน้า</p>
+            <p><strong>ใช้หลัง:</strong> EFA เพื่อยืนยันโมเดล หรือใช้ตรวจสอบความตรงเชิงโครงสร้าง</p>
+            <p><strong>ดัชนีที่ดู:</strong> Chi-square, CFI (&ge;0.90), TLI (&ge;0.90), RMSEA (&le;0.08), SRMR (&le;0.08)</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables (Items)</label>
+            <select id="cfa-vars" class="var-select" multiple style="display:none"></select><div id="cfa-vars-picker"></div></div>
+        <div class="form-group"><label>จำนวนองค์ประกอบ (Factors)</label>
+            <input type="number" id="cfa-factors" class="form-input" value="2" min="1" max="10"></div>
+        <button class="btn btn-primary" onclick="runAnalysis('cfa')">Run CFA</button>
+    </div>
+    <div id="cfa-results" class="results-area"><div id="cfa-extras"></div><div id="cfa-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="cfa-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('cfa')">🤖 AI วิเคราะห์ผล</button><div id="cfa-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('cfa')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('cfa')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: ITEM ANALYSIS                                 -->
+<!-- ================================================== -->
+<div class="page" id="page-item-analysis">
+    <h2 class="page-title">✅ Item Analysis (Difficulty & Discrimination)</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วิเคราะห์คุณภาพข้อสอบ — ค่าความยาก (p) และค่าอำนาจจำแนก (r)</p>
+            <p><strong>เกณฑ์:</strong></p>
+            <ul>
+                <li>ค่าความยาก (p): 0.20-0.80 ถือว่าเหมาะสม</li>
+                <li>ค่าอำนาจจำแนก (r): &ge;0.20 ถือว่ายอมรับได้</li>
+            </ul>
+            <p><strong>ข้อมูล:</strong> คะแนนรายข้อ (0/1 หรือคะแนนย่อย) ของนักเรียนทุกคน</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Items (ข้อสอบ)</label>
+            <select id="item-vars" class="var-select" multiple style="display:none"></select><div id="item-vars-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('item-analysis')">Run Item Analysis</button>
+    </div>
+    <div id="item-results" class="results-area"><div id="item-extras"></div><div id="item-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="item-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('item')">🤖 AI วิเคราะห์ผล</button><div id="item-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('item')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('item')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: SAMPLE SIZE CALCULATOR                        -->
+<!-- ================================================== -->
+<div class="page" id="page-sample-size">
+    <h2 class="page-title">🎯 คำนวณขนาดตัวอย่าง (Sample Size Calculator)</h2>
+    <details class="stat-guide"><summary>📖 วิธีใช้งาน</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> คำนวณจำนวนกลุ่มตัวอย่างที่เหมาะสมก่อนเก็บข้อมูล</p>
+            <p><strong>สูตรที่รองรับ:</strong></p>
+            <ul>
+                <li><strong>Taro Yamane</strong> — เมื่อทราบจำนวนประชากร</li>
+                <li><strong>Cochran</strong> — เมื่อไม่ทราบจำนวนประชากร</li>
+                <li><strong>Krejcie & Morgan</strong> — ตารางสำเร็จรูป</li>
+                <li><strong>G*Power</strong> — ตาม Effect Size / Power ของสถิติที่ใช้</li>
+                <li><strong>W.G. Cochran (Proportion)</strong> — สำหรับสัดส่วน</li>
+            </ul>
+        </div></details>
+    <div class="card">
+        <h3 style="margin:0 0 16px;color:#1e40af">เลือกสูตรการคำนวณ</h3>
+        <div class="form-group"><label>Formula</label>
+            <select id="ss-formula" class="form-select" onchange="toggleSampleSizeInputs()">
+                <option value="yamane" selected>Taro Yamane (ทราบจำนวนประชากร)</option>
+                <option value="cochran">Cochran (ไม่ทราบประชากร)</option>
+                <option value="krejcie">Krejcie & Morgan (ตารางสำเร็จรูป)</option>
+                <option value="gpower">G*Power (ตาม Effect Size)</option>
+                <option value="proportion">Cochran — Proportion (สัดส่วน)</option>
+            </select></div>
+
+        <div id="ss-yamane-inputs">
+            <div class="form-row">
+                <div class="form-group"><label>จำนวนประชากร (N)</label><input type="number" id="ss-pop" class="form-input" value="1000" min="1"></div>
+                <div class="form-group"><label>ค่าความคลาดเคลื่อน (e)</label>
+                    <select id="ss-error" class="form-select"><option value="0.01">0.01 (1%)</option><option value="0.05" selected>0.05 (5%)</option><option value="0.10">0.10 (10%)</option></select></div>
+            </div>
+        </div>
+
+        <div id="ss-cochran-inputs" style="display:none">
+            <div class="form-row">
+                <div class="form-group"><label>Confidence Level (Z)</label>
+                    <select id="ss-z" class="form-select"><option value="1.65">90% (Z=1.65)</option><option value="1.96" selected>95% (Z=1.96)</option><option value="2.58">99% (Z=2.58)</option></select></div>
+                <div class="form-group"><label>ค่าความคลาดเคลื่อน (e)</label><input type="number" id="ss-coch-e" class="form-input" value="0.05" step="0.01"></div>
+                <div class="form-group"><label>สัดส่วนที่คาด (p)</label><input type="number" id="ss-coch-p" class="form-input" value="0.50" step="0.01"></div>
+            </div>
+        </div>
+
+        <div id="ss-krejcie-inputs" style="display:none">
+            <div class="form-group"><label>จำนวนประชากร (N)</label><input type="number" id="ss-krej-pop" class="form-input" value="1000" min="1"></div>
+        </div>
+
+        <div id="ss-gpower-inputs" style="display:none">
+            <div class="form-row">
+                <div class="form-group"><label>Test Type</label>
+                    <select id="ss-gp-test" class="form-select">
+                        <option value="ttest">Independent t-test</option><option value="paired">Paired t-test</option>
+                        <option value="anova">One-way ANOVA</option><option value="correlation">Correlation</option>
+                        <option value="chi-square">Chi-Square</option><option value="regression">Multiple Regression</option>
+                    </select></div>
+                <div class="form-group"><label>Effect Size</label><input type="number" id="ss-gp-es" class="form-input" value="0.5" step="0.1" min="0.01"></div>
+                <div class="form-group"><label>Alpha</label><input type="number" id="ss-gp-alpha" class="form-input" value="0.05" step="0.01"></div>
+                <div class="form-group"><label>Power</label><input type="number" id="ss-gp-power" class="form-input" value="0.80" step="0.05"></div>
+                <div class="form-group"><label>Groups / Predictors</label><input type="number" id="ss-gp-groups" class="form-input" value="2" min="2"></div>
+            </div>
+            <div class="detail-box" style="margin-bottom:12px">
+                <strong>Effect Size ตามเกณฑ์ Cohen:</strong><br>
+                t-test (d): Small=0.2, Medium=0.5, Large=0.8<br>
+                ANOVA (f): Small=0.10, Medium=0.25, Large=0.40<br>
+                Correlation (r): Small=0.10, Medium=0.30, Large=0.50<br>
+                Chi-Square (w): Small=0.10, Medium=0.30, Large=0.50<br>
+                Regression (f2): Small=0.02, Medium=0.15, Large=0.35
+            </div>
+        </div>
+
+        <div id="ss-proportion-inputs" style="display:none">
+            <div class="form-row">
+                <div class="form-group"><label>Confidence Level</label>
+                    <select id="ss-prop-z" class="form-select"><option value="1.65">90%</option><option value="1.96" selected>95%</option><option value="2.58">99%</option></select></div>
+                <div class="form-group"><label>Margin of Error (e)</label><input type="number" id="ss-prop-e" class="form-input" value="0.05" step="0.01"></div>
+                <div class="form-group"><label>Estimated Proportion (p)</label><input type="number" id="ss-prop-p" class="form-input" value="0.50" step="0.01"></div>
+                <div class="form-group"><label>Population (N) — ถ้าทราบ, ไม่ใส่=ไม่จำกัด</label><input type="number" id="ss-prop-pop" class="form-input" value="" placeholder="ไม่ระบุ"></div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="runAnalysis('sample-size')" style="margin-top:12px">🎯 คำนวณขนาดตัวอย่าง</button>
+    </div>
+    <div id="ss-results" class="results-area"><div id="ss-extras"></div><div id="ss-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="ss-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4 — อ้างอิงสูตร</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('ss')">🤖 AI วิเคราะห์ผล — แนะนำการอ้างอิง</button><div id="ss-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('ss')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('ss')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: HOMOGENEITY OF VARIANCE                       -->
+<!-- ================================================== -->
+<div class="page" id="page-homogeneity">
+    <h2 class="page-title">🔍 Homogeneity of Variance Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> ทดสอบว่าความแปรปรวนของกลุ่มเท่ากันหรือไม่</p>
+            <p><strong>วิธีทดสอบ:</strong> Levene's Test, Bartlett's Test</p>
+            <p><strong>ใช้ก่อน:</strong> Independent t-test, ANOVA เพื่อเช็ค Assumption</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Dependent Variable</label>
+            <select id="hov-dv" class="var-select" style="display:none"></select><div id="hov-dv-picker"></div></div>
+        <div class="form-group"><label>Grouping Variable</label>
+            <select id="hov-iv" class="var-select" style="display:none"></select><div id="hov-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('homogeneity')">Run Homogeneity Test</button>
+    </div>
+    <div id="hov-results" class="results-area"><div id="hov-extras"></div><div id="hov-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="hov-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('hov')">🤖 AI วิเคราะห์ผล</button><div id="hov-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('hov')">📥 Excel</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: PATH ANALYSIS                                 -->
+<!-- ================================================== -->
+<div class="page" id="page-path-analysis">
+    <h2 class="page-title">🧠 Path Analysis</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วิเคราะห์อิทธิพลทางตรงและทางอ้อมระหว่างตัวแปร</p>
+            <p><strong>เงื่อนไข:</strong></p>
+            <ul><li>มีกรอบแนวคิด/โมเดลที่กำหนดทิศทางอิทธิพล</li><li>ตัวแปรเชิงปริมาณ</li></ul>
+            <p><strong>ตัวอย่าง:</strong> แรงจูงใจ → พฤติกรรมการเรียน → ผลสัมฤทธิ์ (Direct + Indirect Effect)</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Dependent Variable (Endogenous)</label>
+            <select id="path-dv" class="var-select" style="display:none"></select><div id="path-dv-picker"></div></div>
+        <div class="form-group"><label>Mediator Variable (ตัวแปรส่งผ่าน) — optional</label>
+            <select id="path-med" class="var-select" style="display:none"></select><div id="path-med-picker"></div></div>
+        <div class="form-group"><label>Independent Variables (Exogenous)</label>
+            <select id="path-iv" class="var-select" multiple style="display:none"></select><div id="path-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('path-analysis')">Run Path Analysis</button>
+    </div>
+    <div id="path-results" class="results-area"><div id="path-extras"></div><div id="path-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="path-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('path')">🤖 AI วิเคราะห์ผล</button><div id="path-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('path')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('path')">📥 Word</button></div></div>
 </div>
 
         <!-- ================================================== -->

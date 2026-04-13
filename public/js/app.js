@@ -955,13 +955,9 @@
     // =========================================================================
 
     function runAnalysis(type) {
-        if (!state.data && type.indexOf('effect-') !== 0 && type.indexOf('assumption-') !== 0) {
-            if (!state.data) {
-                alert('Please upload a data file first.');
-                return;
-            }
-        }
-        if (!state.data) {
+        var noDataTypes = ['effect-', 'assumption-', 'sample-size', 'power-analysis'];
+        var needsData = !noDataTypes.some(function(t) { return type.indexOf(t) === 0 || type === t; });
+        if (needsData && !state.data) {
             alert('Please upload a data file first.');
             return;
         }
@@ -1023,6 +1019,18 @@
                 case 'qqplot': runQQPlot(); break;
                 case 'survival': runSurvival(); break;
                 case 'time-series': runTimeSeries(); break;
+                case 'sample-size': runSampleSize(); break;
+                case 'one-sample-ttest': runOneSampleTTest(); break;
+                case 'sign-test': runSignTest(); break;
+                case 'binomial-test': runBinomialTest(); break;
+                case 'homogeneity': runHomogeneity(); break;
+                case 'manova': runManova(); break;
+                case 'games-howell': runGamesHowell(); break;
+                case 'multiple-regression': runMultipleRegression(); break;
+                case 'kappa': runKappa(); break;
+                case 'cfa': runCFA(); break;
+                case 'item-analysis': runItemAnalysis(); break;
+                case 'path-analysis': runPathAnalysis(); break;
                 default:
                     alert('Analysis type "' + type + '" is not yet implemented.');
             }
@@ -3749,12 +3757,167 @@
             if (aiResultEl) {
                 aiResultEl.innerHTML = '<h4>🤖 ผลการวิเคราะห์ — พร้อมใช้ในบทที่ 4</h4><p>' + aiText.replace(/\n/g, '<br>') + '</p>';
                 aiResultEl.style.display = '';
+                // Inject follow-up chat UI
+                injectFollowupChat(prefix, aiResultEl);
             }
         } catch (err) {
             if (aiResultEl) {
                 aiResultEl.innerHTML = '<p class="error-text">Error: ' + escapeHtml(err.message) + '</p>';
                 aiResultEl.style.display = '';
             }
+        }
+    }
+
+    // =========================================================================
+    // AI Follow-up Chat in Results
+    // =========================================================================
+    // Stores per-prefix chat histories
+    state.followupChats = state.followupChats || {};
+
+    function injectFollowupChat(prefix, parentEl) {
+        // Remove existing followup chat if any
+        var existingChat = document.getElementById('followup-chat-' + prefix);
+        if (existingChat) existingChat.remove();
+
+        var chatDiv = document.createElement('div');
+        chatDiv.id = 'followup-chat-' + prefix;
+        chatDiv.className = 'followup-chat-container';
+        chatDiv.innerHTML =
+            '<div class="followup-chat-header" onclick="toggleFollowupChat(\'' + prefix + '\')">' +
+                '<span>💬 สอบถาม / ขอคำแนะนำเพิ่มเติมจาก AI</span>' +
+                '<span class="followup-arrow" id="followup-arrow-' + prefix + '">▸</span>' +
+            '</div>' +
+            '<div class="followup-chat-body" id="followup-body-' + prefix + '" style="display:none">' +
+                '<div class="followup-messages" id="followup-msgs-' + prefix + '">' +
+                    '<div class="chat-msg-ai"><div class="chat-avatar">🤖</div><div class="chat-bubble">สอบถามเพิ่มเติมเกี่ยวกับผลวิเคราะห์นี้ได้เลยครับ เช่น อธิบายเพิ่ม, แนะนำการเขียนบทที่ 4, แปลผลอย่างอื่น</div></div>' +
+                '</div>' +
+                '<div class="followup-suggestions">' +
+                    '<button class="suggestion-btn-sm" onclick="sendFollowup(\'' + prefix + '\',\'อธิบายผลวิเคราะห์ให้ละเอียดขึ้น\')">📝 อธิบายเพิ่มเติม</button>' +
+                    '<button class="suggestion-btn-sm" onclick="sendFollowup(\'' + prefix + '\',\'ช่วยเขียนเนื้อหาบทที่ 4 จากผลวิเคราะห์นี้\')">📖 เขียนบทที่ 4</button>' +
+                    '<button class="suggestion-btn-sm" onclick="sendFollowup(\'' + prefix + '\',\'อธิบายให้เข้าใจง่ายๆ แบบชาวบ้าน\')">💡 อธิบายง่ายๆ</button>' +
+                    '<button class="suggestion-btn-sm" onclick="sendFollowup(\'' + prefix + '\',\'มีข้อจำกัดหรือข้อควรระวังอะไรบ้าง\')">⚠️ ข้อควรระวัง</button>' +
+                '</div>' +
+                '<div class="followup-input-row">' +
+                    '<input type="text" class="followup-input" id="followup-input-' + prefix + '" placeholder="พิมพ์คำถามเกี่ยวกับผลวิเคราะห์..." onkeypress="if(event.key===\'Enter\') sendFollowupFromInput(\'' + prefix + '\')">' +
+                    '<button class="btn btn-ai btn-sm" onclick="sendFollowupFromInput(\'' + prefix + '\')">📤 ส่ง</button>' +
+                '</div>' +
+            '</div>';
+
+        parentEl.parentNode.insertBefore(chatDiv, parentEl.nextSibling);
+        // Initialize chat history for this prefix
+        if (!state.followupChats[prefix]) state.followupChats[prefix] = [];
+    }
+
+    function toggleFollowupChat(prefix) {
+        var body = document.getElementById('followup-body-' + prefix);
+        var arrow = document.getElementById('followup-arrow-' + prefix);
+        if (body) {
+            var isHidden = body.style.display === 'none';
+            body.style.display = isHidden ? '' : 'none';
+            if (arrow) arrow.textContent = isHidden ? '▾' : '▸';
+        }
+    }
+
+    function sendFollowupFromInput(prefix) {
+        var input = document.getElementById('followup-input-' + prefix);
+        if (!input) return;
+        var msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+        sendFollowup(prefix, msg);
+    }
+
+    async function sendFollowup(prefix, message) {
+        if (!state.aiSettings.apiKey) {
+            appendFollowupMsg(prefix, 'bot', '⚠️ กรุณาตั้งค่า API Key ใน AI Settings ก่อน');
+            return;
+        }
+
+        // Build context from the analysis results
+        var result = state.results[prefix];
+        var textData = '';
+        if (result) {
+            if (result.title) textData += result.title + '\n\n';
+            if (result.extras) {
+                result.extras.forEach(function(extra) {
+                    if (extra.title) textData += extra.title + '\n';
+                    if (extra.data) textData += tableToText(extra.data) + '\n\n';
+                });
+            }
+            if (result.data) textData += tableToText(result.data);
+        }
+
+        var aiSummary = state.aiResults[prefix] || '';
+
+        // Add user message
+        if (!state.followupChats[prefix]) state.followupChats[prefix] = [];
+        state.followupChats[prefix].push({ role: 'user', content: message });
+        appendFollowupMsg(prefix, 'user', message);
+
+        // Show loading
+        var loadingId = 'followup-loading-' + prefix;
+        appendFollowupMsg(prefix, 'bot', '<span id="' + loadingId + '" class="loading-dots">กำลังคิด...</span>', true);
+
+        try {
+            var systemContext = 'คุณคือผู้เชี่ยวชาญด้านสถิติวิจัย กำลังให้คำปรึกษาเกี่ยวกับผลวิเคราะห์ต่อไปนี้:\n\n' +
+                'ข้อมูลผลวิเคราะห์:\n' + textData + '\n\n' +
+                'ผลสรุปจาก AI ก่อนหน้า:\n' + aiSummary + '\n\n' +
+                'ตอบเป็นภาษาไทย กระชับ ชัดเจน เหมาะสำหรับใช้ในงานวิจัย/วิทยานิพนธ์';
+
+            var history = state.followupChats[prefix].map(function(m) {
+                return { role: m.role === 'bot' ? 'assistant' : m.role, content: m.content };
+            });
+
+            var response = await fetch('/api/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    apiKey: state.aiSettings.apiKey,
+                    model: state.aiSettings.model,
+                    history: history,
+                    context: systemContext
+                })
+            });
+
+            // Remove loading message
+            var loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.closest('.chat-msg-ai').remove();
+
+            if (!response.ok) {
+                var errText = await response.text();
+                throw new Error('AI request failed: ' + errText);
+            }
+
+            var json = await response.json();
+            var reply = json.reply || json.result || json.text || 'ไม่ได้รับคำตอบจาก AI';
+            reply = cleanAIText(reply);
+
+            state.followupChats[prefix].push({ role: 'bot', content: reply });
+            appendFollowupMsg(prefix, 'bot', reply);
+        } catch (err) {
+            var loadingEl2 = document.getElementById(loadingId);
+            if (loadingEl2) loadingEl2.closest('.chat-msg-ai').remove();
+            appendFollowupMsg(prefix, 'bot', 'Error: ' + err.message);
+        }
+    }
+
+    function appendFollowupMsg(prefix, role, text, isHtml) {
+        var container = document.getElementById('followup-msgs-' + prefix);
+        if (!container) return;
+        var div = document.createElement('div');
+        var avatar = role === 'user' ? '👤' : '🤖';
+        div.className = role === 'user' ? 'chat-msg-user' : 'chat-msg-ai';
+        var displayText = isHtml ? text : (role === 'user' ? escapeHtml(text) : formatAIResponse(text));
+        div.innerHTML = '<div class="chat-avatar">' + avatar + '</div><div class="chat-bubble">' + displayText + '</div>';
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+
+        // Auto-open the chat body if it's hidden
+        var body = document.getElementById('followup-body-' + prefix);
+        var arrow = document.getElementById('followup-arrow-' + prefix);
+        if (body && body.style.display === 'none') {
+            body.style.display = '';
+            if (arrow) arrow.textContent = '▾';
         }
     }
 
@@ -4193,6 +4356,447 @@
         displayResults('ts');
     }
 
+    // =========================================================================
+    // SAMPLE SIZE CALCULATOR
+    // =========================================================================
+    function runSampleSize() {
+        var formula = getSelectValue('ss-formula') || 'yamane';
+        var result = {};
+        var extras = [];
+
+        if (formula === 'yamane') {
+            var N = parseFloat(document.getElementById('ss-pop').value) || 1000;
+            var e = parseFloat(getSelectValue('ss-error')) || 0.05;
+            var n = Math.ceil(N / (1 + N * e * e));
+            result = {'สูตร':'Taro Yamane','จำนวนประชากร (N)':N,'ค่าความคลาดเคลื่อน (e)':e,'ขนาดตัวอย่างที่คำนวณได้ (n)':n};
+            extras.push({title:'สูตร Yamane: n = N / (1 + Ne²)',data:[result]});
+        } else if (formula === 'cochran') {
+            var z = parseFloat(getSelectValue('ss-z')) || 1.96;
+            var e2 = parseFloat(document.getElementById('ss-coch-e').value) || 0.05;
+            var p = parseFloat(document.getElementById('ss-coch-p').value) || 0.50;
+            var q = 1 - p;
+            var n2 = Math.ceil((z * z * p * q) / (e2 * e2));
+            result = {'สูตร':'Cochran','Z':z,'p':p,'q':q,'e':e2,'ขนาดตัวอย่าง (n)':n2};
+            extras.push({title:'สูตร Cochran: n = Z²pq / e²',data:[result]});
+        } else if (formula === 'krejcie') {
+            var Nk = parseFloat(document.getElementById('ss-krej-pop').value) || 1000;
+            // Krejcie & Morgan formula: S = X²NP(1-P) / (d²(N-1) + X²P(1-P))
+            var X2 = 3.841; // chi-square at .05 with df=1
+            var Pk = 0.5; var dk = 0.05;
+            var nk = Math.ceil((X2 * Nk * Pk * (1-Pk)) / (dk*dk*(Nk-1) + X2*Pk*(1-Pk)));
+            result = {'สูตร':'Krejcie & Morgan','จำนวนประชากร (N)':Nk,'ขนาดตัวอย่าง (S)':nk};
+            extras.push({title:'Krejcie & Morgan Table Formula (α=.05, P=.50)',data:[result]});
+            // Add common table values
+            var tableVals = [[10,10],[50,44],[100,80],[200,132],[300,169],[400,196],[500,217],[750,254],[1000,278],[1500,306],[2000,322],[3000,341],[5000,357],[10000,370],[50000,381],[100000,384]];
+            var tableRows = tableVals.map(function(v){return {'Population (N)':v[0],'Sample Size (S)':v[1]};});
+            extras.push({title:'ตาราง Krejcie & Morgan (อ้างอิง)',data:tableRows});
+        } else if (formula === 'gpower') {
+            var test = getSelectValue('ss-gp-test') || 'ttest';
+            var es = parseFloat(document.getElementById('ss-gp-es').value) || 0.5;
+            var alpha = parseFloat(document.getElementById('ss-gp-alpha').value) || 0.05;
+            var power = parseFloat(document.getElementById('ss-gp-power').value) || 0.80;
+            var groups = parseInt(document.getElementById('ss-gp-groups').value) || 2;
+            // Approximate using Cohen's formulas
+            var za = jStat.normal.inv(1 - alpha/2, 0, 1);
+            var zb = jStat.normal.inv(power, 0, 1);
+            var nGP = 0;
+            if (test === 'ttest') { nGP = Math.ceil(2 * Math.pow((za + zb) / es, 2)); }
+            else if (test === 'paired') { nGP = Math.ceil(Math.pow((za + zb) / es, 2)); }
+            else if (test === 'anova') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es) * groups); }
+            else if (test === 'correlation') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es) + 3); }
+            else if (test === 'chi-square') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es)); }
+            else if (test === 'regression') { var f2 = es; nGP = Math.ceil((Math.pow(za+zb,2) * (1+groups*f2)) / f2 + groups + 1); }
+            result = {'Test':test,'Effect Size':es,'Alpha':alpha,'Power':power,'Groups/Predictors':groups,'Sample Size (per group)':nGP,'Total Sample':test==='ttest'?nGP*2:(test==='anova'?nGP:nGP)};
+            extras.push({title:'G*Power Approximation',data:[result]});
+        } else if (formula === 'proportion') {
+            var zp = parseFloat(getSelectValue('ss-prop-z')) || 1.96;
+            var ep = parseFloat(document.getElementById('ss-prop-e').value) || 0.05;
+            var pp = parseFloat(document.getElementById('ss-prop-p').value) || 0.50;
+            var Np = document.getElementById('ss-prop-pop').value ? parseFloat(document.getElementById('ss-prop-pop').value) : null;
+            var n0 = Math.ceil((zp * zp * pp * (1 - pp)) / (ep * ep));
+            var nFinal = n0;
+            if (Np && Np > 0) { nFinal = Math.ceil(n0 / (1 + (n0 - 1) / Np)); }
+            result = {'สูตร':'Cochran Proportion','Z':zp,'p':pp,'e':ep,'n₀ (ไม่จำกัดประชากร)':n0};
+            if (Np) result['Population (N)'] = Np;
+            result['ขนาดตัวอย่าง (n)'] = nFinal;
+            extras.push({title:'Cochran Proportion: n₀ = Z²p(1-p)/e²' + (Np ? ', adjusted for finite population' : ''),data:[result]});
+        }
+
+        state.results['ss'] = {data:[result], title:'ผลการคำนวณขนาดตัวอย่าง — ' + formula.toUpperCase(), extras:extras};
+        displayResults('ss');
+    }
+
+    // =========================================================================
+    // ONE-SAMPLE t-TEST
+    // =========================================================================
+    function runOneSampleTTest() {
+        var varName = getCheckedVars('ost-var-picker')[0];
+        if (!varName) { alert('กรุณาเลือกตัวแปร'); return; }
+        var testVal = parseFloat(document.getElementById('ost-testval').value) || 0;
+        var alpha = parseFloat(getSelectValue('ost-alpha')) || 0.05;
+        var values = state.data.map(function(r){return parseFloat(r[varName]);}).filter(function(v){return !isNaN(v);});
+        var n = values.length;
+        if (n < 2) { alert('ข้อมูลไม่เพียงพอ'); return; }
+        var mean = jStat.mean(values);
+        var sd = jStat.stdev(values, true);
+        var se = sd / Math.sqrt(n);
+        var t = (mean - testVal) / se;
+        var df = n - 1;
+        var p = 2 * (1 - jStat.studentt.cdf(Math.abs(t), df));
+        var d = (mean - testVal) / sd;
+        var ci95lo = mean - jStat.studentt.inv(1-alpha/2,df)*se;
+        var ci95hi = mean + jStat.studentt.inv(1-alpha/2,df)*se;
+        var sig = p < alpha ? 'Sig.' : 'Not Sig.';
+
+        var extras = [{title:'Descriptive Statistics',data:[{Variable:varName,N:n,Mean:fmt(mean),'S.D.':fmt(sd),'S.E.':fmt(se),'Test Value':testVal}]}];
+        var data = [{Variable:varName,t:fmt(t),df:df,'Sig. (2-tailed)':fmt(p),'Mean Diff.':fmt(mean-testVal),'95% CI Lower':fmt(ci95lo),'95% CI Upper':fmt(ci95hi),"Cohen's d":fmt(d),Result:sig}];
+
+        state.results['ost'] = {data:data, title:'One-Sample t-test: '+varName+' vs '+testVal, extras:extras};
+        displayResults('ost');
+    }
+
+    // =========================================================================
+    // SIGN TEST
+    // =========================================================================
+    function runSignTest() {
+        var before = getCheckedVars('sign-before-picker')[0];
+        var after = getCheckedVars('sign-after-picker')[0];
+        if (!before || !after) { alert('กรุณาเลือกตัวแปร Before และ After'); return; }
+        var alpha = parseFloat(getSelectValue('sign-alpha')) || 0.05;
+        var pairs = [];
+        state.data.forEach(function(r){
+            var b = parseFloat(r[before]), a = parseFloat(r[after]);
+            if (!isNaN(b) && !isNaN(a)) pairs.push({b:b,a:a,diff:a-b});
+        });
+        var positive = pairs.filter(function(p){return p.diff>0;}).length;
+        var negative = pairs.filter(function(p){return p.diff<0;}).length;
+        var ties = pairs.filter(function(p){return p.diff===0;}).length;
+        var n = positive + negative; // exclude ties
+        var k = Math.min(positive, negative);
+        // Binomial test: p = 2 * sum(C(n,i) * 0.5^n) for i=0..k
+        var p = 0;
+        for (var i = 0; i <= k; i++) { p += jStat.combination(n, i) * Math.pow(0.5, n); }
+        p = Math.min(p * 2, 1);
+        var sig = p < alpha ? 'Sig.' : 'Not Sig.';
+
+        var data = [{'Before':before,'After':after,'Positive Diffs':positive,'Negative Diffs':negative,'Ties':ties,'N (excl. ties)':n,'p-value':fmt(p),'Alpha':alpha,'Result':sig}];
+        state.results['sign'] = {data:data, title:'Sign Test: '+before+' vs '+after, extras:[]};
+        displayResults('sign');
+    }
+
+    // =========================================================================
+    // BINOMIAL TEST
+    // =========================================================================
+    function runBinomialTest() {
+        var varName = getCheckedVars('binom-var-picker')[0];
+        if (!varName) { alert('กรุณาเลือกตัวแปร'); return; }
+        var expectedP = parseFloat(document.getElementById('binom-p').value) || 0.50;
+        var alpha = parseFloat(getSelectValue('binom-alpha')) || 0.05;
+        var values = state.data.map(function(r){return parseFloat(r[varName]);}).filter(function(v){return v===0||v===1;});
+        var n = values.length;
+        if (n < 1) { alert('ข้อมูลต้องเป็น 0/1 (Binary)'); return; }
+        var successes = values.filter(function(v){return v===1;}).length;
+        var obsProp = successes / n;
+        // Two-sided binomial test
+        var p = 0;
+        for (var i = 0; i <= n; i++) {
+            var prob_i = jStat.combination(n, i) * Math.pow(expectedP, i) * Math.pow(1-expectedP, n-i);
+            var prob_obs = jStat.combination(n, successes) * Math.pow(expectedP, successes) * Math.pow(1-expectedP, n-successes);
+            if (prob_i <= prob_obs + 1e-10) p += prob_i;
+        }
+        p = Math.min(p, 1);
+        var sig = p < alpha ? 'Sig.' : 'Not Sig.';
+
+        var data = [{Variable:varName,N:n,'Successes (1)':successes,'Observed Proportion':fmt(obsProp),'Expected Proportion':expectedP,'p-value':fmt(p),'Alpha':alpha,'Result':sig}];
+        state.results['binom'] = {data:data, title:'Binomial Test: '+varName, extras:[]};
+        displayResults('binom');
+    }
+
+    // =========================================================================
+    // HOMOGENEITY OF VARIANCE (Levene's Test)
+    // =========================================================================
+    function runHomogeneity() {
+        var dvName = getCheckedVars('hov-dv-picker')[0];
+        var ivName = getCheckedVars('hov-iv-picker')[0];
+        if (!dvName || !ivName) { alert('กรุณาเลือก DV และ Grouping Variable'); return; }
+        var groups = {};
+        state.data.forEach(function(r){
+            var g = String(r[ivName]);
+            var v = parseFloat(r[dvName]);
+            if (!isNaN(v) && g) { if (!groups[g]) groups[g] = []; groups[g].push(v); }
+        });
+        var gNames = Object.keys(groups);
+        if (gNames.length < 2) { alert('ต้องมีอย่างน้อย 2 กลุ่ม'); return; }
+        // Levene's Test (using mean)
+        var allMedians = {};
+        gNames.forEach(function(g){ allMedians[g] = jStat.mean(groups[g]); });
+        var zScores = {};
+        gNames.forEach(function(g){ zScores[g] = groups[g].map(function(v){ return Math.abs(v - allMedians[g]); }); });
+        var allZ = []; gNames.forEach(function(g){ allZ = allZ.concat(zScores[g]); });
+        var grandMeanZ = jStat.mean(allZ);
+        var groupMeansZ = {};
+        gNames.forEach(function(g){ groupMeansZ[g] = jStat.mean(zScores[g]); });
+        var N = allZ.length; var k = gNames.length;
+        var SSB = 0; gNames.forEach(function(g){ SSB += zScores[g].length * Math.pow(groupMeansZ[g] - grandMeanZ, 2); });
+        var SSW = 0; gNames.forEach(function(g){ zScores[g].forEach(function(z){ SSW += Math.pow(z - groupMeansZ[g], 2); }); });
+        var df1 = k - 1; var df2 = N - k;
+        var F = (SSB / df1) / (SSW / df2);
+        var p = 1 - jStat.centralF.cdf(F, df1, df2);
+
+        var descRows = gNames.map(function(g){ return {Group:g, N:groups[g].length, Mean:fmt(jStat.mean(groups[g])), 'S.D.':fmt(jStat.stdev(groups[g],true)), Variance:fmt(jStat.variance(groups[g],true))}; });
+        var extras = [{title:'Descriptive by Group',data:descRows}];
+        var data = [{"Test":"Levene's Test (based on Mean)",'F':fmt(F),'df1':df1,'df2':df2,'Sig.':fmt(p),'Result':p<0.05?'Variance NOT equal':'Variance Equal'}];
+
+        state.results['hov'] = {data:data, title:"Homogeneity of Variance: "+dvName+" by "+ivName, extras:extras};
+        displayResults('hov');
+    }
+
+    // =========================================================================
+    // MANOVA (simplified — Wilks' Lambda approximation)
+    // =========================================================================
+    function runManova() {
+        var dvNames = getCheckedVars('manova-dv-picker');
+        var ivName = getCheckedVars('manova-iv-picker')[0];
+        if (!dvNames || dvNames.length < 2 || !ivName) { alert('กรุณาเลือก DV อย่างน้อย 2 ตัว และ Factor 1 ตัว'); return; }
+        var alpha = parseFloat(getSelectValue('manova-alpha')) || 0.05;
+        // Group data
+        var groups = {};
+        state.data.forEach(function(r) {
+            var g = String(r[ivName]);
+            if (!g) return;
+            if (!groups[g]) groups[g] = [];
+            var row = {};
+            dvNames.forEach(function(dv) { row[dv] = parseFloat(r[dv]); });
+            if (dvNames.every(function(dv){return !isNaN(row[dv]);})) groups[g].push(row);
+        });
+        var gNames = Object.keys(groups);
+        if (gNames.length < 2) { alert('Factor ต้องมีอย่างน้อย 2 กลุ่ม'); return; }
+
+        // Run individual ANOVAs for each DV and combine
+        var anovaResults = [];
+        dvNames.forEach(function(dv) {
+            var grpData = {};
+            gNames.forEach(function(g) { grpData[g] = groups[g].map(function(r){return r[dv];}); });
+            var allVals = []; gNames.forEach(function(g){allVals=allVals.concat(grpData[g]);});
+            var grandMean = jStat.mean(allVals);
+            var N = allVals.length; var k = gNames.length;
+            var SSB=0,SSW=0;
+            gNames.forEach(function(g){
+                var gm=jStat.mean(grpData[g]);
+                SSB+=grpData[g].length*Math.pow(gm-grandMean,2);
+                grpData[g].forEach(function(v){SSW+=Math.pow(v-gm,2);});
+            });
+            var df1=k-1,df2=N-k;
+            var F=(SSB/df1)/(SSW/df2);
+            var p=1-jStat.centralF.cdf(F,df1,df2);
+            anovaResults.push({DV:dv,F:fmt(F),df1:df1,df2:df2,'Sig.':fmt(p),'Result':p<alpha?'Sig.':'Not Sig.'});
+        });
+
+        // Descriptive
+        var descRows = [];
+        gNames.forEach(function(g) {
+            var row = {Group:g,N:groups[g].length};
+            dvNames.forEach(function(dv){
+                var vals = groups[g].map(function(r){return r[dv];});
+                row['Mean('+dv+')'] = fmt(jStat.mean(vals));
+                row['SD('+dv+')'] = fmt(jStat.stdev(vals,true));
+            });
+            descRows.push(row);
+        });
+        var extras = [{title:'Descriptive Statistics by Group',data:descRows},{title:'Univariate ANOVA Results (per DV)',data:anovaResults}];
+
+        // Approximate Wilks' Lambda (product of 1/(1+eigenvalue))
+        // Simplified: use product of (SSW/(SSW+SSB)) per DV
+        var wilks = 1;
+        dvNames.forEach(function(dv) {
+            var grpData = {};
+            gNames.forEach(function(g) { grpData[g] = groups[g].map(function(r){return r[dv];}); });
+            var allVals = []; gNames.forEach(function(g){allVals=allVals.concat(grpData[g]);});
+            var grandMean = jStat.mean(allVals);
+            var SSB=0,SSW=0;
+            gNames.forEach(function(g){
+                var gm=jStat.mean(grpData[g]);
+                SSB+=grpData[g].length*Math.pow(gm-grandMean,2);
+                grpData[g].forEach(function(v){SSW+=Math.pow(v-gm,2);});
+            });
+            wilks *= SSW/(SSW+SSB);
+        });
+
+        var data = [{"Wilks' Lambda":fmt(wilks),'DVs':dvNames.join(', '),'Factor':ivName,'Groups':gNames.length,'Note':'ดู Univariate ANOVA ด้านบนสำหรับผลรายตัวแปร'}];
+        state.results['manova'] = {data:data, title:'MANOVA: '+dvNames.join(', ')+' by '+ivName, extras:extras};
+        displayResults('manova');
+    }
+
+    // =========================================================================
+    // GAMES-HOWELL POST-HOC
+    // =========================================================================
+    function runGamesHowell() {
+        var dvName = getCheckedVars('gh-dv-picker')[0];
+        var ivName = getCheckedVars('gh-iv-picker')[0];
+        if (!dvName || !ivName) { alert('กรุณาเลือก DV และ Factor'); return; }
+        var groups = {};
+        state.data.forEach(function(r){
+            var g=String(r[ivName]),v=parseFloat(r[dvName]);
+            if(!isNaN(v)&&g){if(!groups[g])groups[g]=[];groups[g].push(v);}
+        });
+        var gNames = Object.keys(groups);
+        if (gNames.length < 3) { alert('ต้องมีอย่างน้อย 3 กลุ่ม'); return; }
+
+        var results = [];
+        for (var i=0;i<gNames.length;i++){
+            for (var j=i+1;j<gNames.length;j++){
+                var g1=groups[gNames[i]],g2=groups[gNames[j]];
+                var m1=jStat.mean(g1),m2=jStat.mean(g2);
+                var v1=jStat.variance(g1,true),v2=jStat.variance(g2,true);
+                var n1=g1.length,n2=g2.length;
+                var se=Math.sqrt(v1/n1+v2/n2);
+                var t=(m1-m2)/se;
+                var df_num=Math.pow(v1/n1+v2/n2,2);
+                var df_den=Math.pow(v1/n1,2)/(n1-1)+Math.pow(v2/n2,2)/(n2-1);
+                var df=df_num/df_den;
+                var p=2*(1-jStat.studentt.cdf(Math.abs(t),df));
+                results.push({'Group (I)':gNames[i],'Group (J)':gNames[j],'Mean Diff (I-J)':fmt(m1-m2),'S.E.':fmt(se),'t':fmt(t),'df':fmt(df),'Sig.':fmt(p),'Result':p<0.05?'Sig.':'Not Sig.'});
+            }
+        }
+        state.results['gh'] = {data:results, title:'Games-Howell Post-hoc: '+dvName+' by '+ivName, extras:[]};
+        displayResults('gh');
+    }
+
+    // =========================================================================
+    // MULTIPLE REGRESSION
+    // =========================================================================
+    function runMultipleRegression() {
+        var dvName = getCheckedVars('mreg-dv-picker')[0];
+        var ivNames = getCheckedVars('mreg-iv-picker');
+        if (!dvName || !ivNames || ivNames.length < 2) { alert('กรุณาเลือก DV 1 ตัว และ IV อย่างน้อย 2 ตัว'); return; }
+
+        // Build data matrix
+        var rows = [];
+        state.data.forEach(function(r){
+            var y = parseFloat(r[dvName]);
+            var xs = ivNames.map(function(iv){return parseFloat(r[iv]);});
+            if (!isNaN(y) && xs.every(function(x){return !isNaN(x);})) rows.push({y:y,xs:xs});
+        });
+        var n = rows.length; var p = ivNames.length;
+        if (n <= p+1) { alert('ข้อมูลไม่เพียงพอสำหรับจำนวนตัวแปรอิสระ'); return; }
+
+        // Simple OLS using normal equations (with intercept)
+        var Y = rows.map(function(r){return r.y;});
+        var X = rows.map(function(r){return [1].concat(r.xs);}); // add intercept
+        var Xt = jStat.transpose(X);
+        var XtX = jStat.multiply(Xt,X);
+        var XtXinv;
+        try { XtXinv = jStat.inv(XtX); } catch(e) { alert('Matrix singular — ตัวแปรอาจมี Multicollinearity สูง'); return; }
+        var XtY = jStat.multiply(Xt,[Y]); // col vector
+        var beta = jStat.multiply(XtXinv,jStat.transpose(XtY));
+        var betas = beta.map(function(b){return b[0];});
+
+        // Predictions and residuals
+        var yPred = rows.map(function(r,i){
+            var pred = betas[0];
+            r.xs.forEach(function(x,j){pred += betas[j+1]*x;});
+            return pred;
+        });
+        var yMean = jStat.mean(Y);
+        var SST=0,SSR=0,SSE=0;
+        Y.forEach(function(y,i){SST+=Math.pow(y-yMean,2);SSR+=Math.pow(yPred[i]-yMean,2);SSE+=Math.pow(y-yPred[i],2);});
+        var R2 = SSR/SST;
+        var adjR2 = 1-(1-R2)*(n-1)/(n-p-1);
+        var MSR = SSR/p; var MSE = SSE/(n-p-1);
+        var F = MSR/MSE;
+        var pF = 1-jStat.centralF.cdf(F,p,n-p-1);
+
+        var extras = [{title:'Model Summary',data:[{R:fmt(Math.sqrt(R2)),'R²':fmt(R2),'Adjusted R²':fmt(adjR2),'Std. Error':fmt(Math.sqrt(MSE)),N:n}]},
+            {title:'ANOVA',data:[{Source:'Regression',SS:fmt(SSR),df:p,MS:fmt(MSR),F:fmt(F),'Sig.':fmt(pF)},{Source:'Residual',SS:fmt(SSE),df:n-p-1,MS:fmt(MSE),F:'','Sig.':''},{Source:'Total',SS:fmt(SST),df:n-1,MS:'',F:'','Sig.':''}]}];
+
+        // Coefficients
+        var se_beta = [];
+        for (var i=0;i<=p;i++) se_beta.push(Math.sqrt(XtXinv[i][i]*MSE));
+        var coeffRows = [{Variable:'(Constant)',B:fmt(betas[0]),'S.E.':fmt(se_beta[0]),Beta:'—',t:fmt(betas[0]/se_beta[0]),'Sig.':fmt(2*(1-jStat.studentt.cdf(Math.abs(betas[0]/se_beta[0]),n-p-1)))}];
+        // Standardized coefficients
+        var sdY = jStat.stdev(Y,true);
+        ivNames.forEach(function(iv,idx){
+            var sdX = jStat.stdev(rows.map(function(r){return r.xs[idx];}),true);
+            var stdBeta = betas[idx+1]*(sdX/sdY);
+            var tVal = betas[idx+1]/se_beta[idx+1];
+            var pVal = 2*(1-jStat.studentt.cdf(Math.abs(tVal),n-p-1));
+            coeffRows.push({Variable:iv,B:fmt(betas[idx+1]),'S.E.':fmt(se_beta[idx+1]),Beta:fmt(stdBeta),t:fmt(tVal),'Sig.':fmt(pVal)});
+        });
+
+        state.results['mreg'] = {data:coeffRows, title:'Multiple Regression: '+dvName+' = f('+ivNames.join(', ')+')', extras:extras};
+        displayResults('mreg');
+    }
+
+    // =========================================================================
+    // COHEN'S KAPPA
+    // =========================================================================
+    function runKappa() {
+        var r1Name = getCheckedVars('kap-r1-picker')[0];
+        var r2Name = getCheckedVars('kap-r2-picker')[0];
+        if (!r1Name || !r2Name) { alert('กรุณาเลือกตัวแปรผู้ประเมิน 2 คน'); return; }
+        var pairs = [];
+        state.data.forEach(function(r){
+            var a=String(r[r1Name]).trim(),b=String(r[r2Name]).trim();
+            if(a&&b) pairs.push({a:a,b:b});
+        });
+        var n=pairs.length;
+        if(n<2){alert('ข้อมูลไม่เพียงพอ');return;}
+        var cats=[]; pairs.forEach(function(p){if(cats.indexOf(p.a)===-1)cats.push(p.a);if(cats.indexOf(p.b)===-1)cats.push(p.b);});
+        cats.sort();
+        // Build confusion matrix
+        var matrix = {};
+        cats.forEach(function(c1){matrix[c1]={};cats.forEach(function(c2){matrix[c1][c2]=0;});});
+        pairs.forEach(function(p){matrix[p.a][p.b]++;});
+        var po=0; cats.forEach(function(c){po+=matrix[c][c];}); po/=n;
+        var pe=0;
+        cats.forEach(function(c){
+            var row=0,col=0;
+            cats.forEach(function(c2){row+=matrix[c][c2];col+=matrix[c2][c];});
+            pe+=(row/n)*(col/n);
+        });
+        var kappa = (po-pe)/(1-pe);
+        var interp = kappa<0.20?'Poor':kappa<0.40?'Fair':kappa<0.60?'Moderate':kappa<0.80?'Good':'Very Good';
+
+        var data = [{Rater1:r1Name,Rater2:r2Name,N:n,'Observed Agreement (Po)':fmt(po),'Expected Agreement (Pe)':fmt(pe),"Cohen's Kappa":fmt(kappa),'Interpretation':interp}];
+        state.results['kap'] = {data:data, title:"Cohen's Kappa: "+r1Name+' vs '+r2Name, extras:[]};
+        displayResults('kap');
+    }
+
+    // =========================================================================
+    // CFA, ITEM ANALYSIS, PATH ANALYSIS (placeholder with message)
+    // =========================================================================
+    function runCFA() {
+        alert('CFA requires advanced matrix operations. กรุณาใช้ AI Chat เพื่อขอคำแนะนำเรื่อง CFA หรือใช้ EFA เป็นทางเลือก');
+    }
+    function runItemAnalysis() {
+        var itemNames = getCheckedVars('item-vars-picker');
+        if (!itemNames || itemNames.length < 2) { alert('กรุณาเลือกข้อสอบอย่างน้อย 2 ข้อ'); return; }
+        var rows = [];
+        state.data.forEach(function(r){
+            var scores = {};
+            itemNames.forEach(function(item){ scores[item] = parseFloat(r[item]); });
+            if (itemNames.every(function(item){return !isNaN(scores[item]);})) rows.push(scores);
+        });
+        var n = rows.length;
+        if (n < 5) { alert('ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย 5 คน)'); return; }
+        // Total scores
+        var totals = rows.map(function(r){var s=0;itemNames.forEach(function(item){s+=r[item];});return s;});
+        var results = [];
+        itemNames.forEach(function(item){
+            var itemScores = rows.map(function(r){return r[item];});
+            var difficulty = jStat.mean(itemScores);
+            // Point-biserial or Pearson correlation with total
+            var totalMinusItem = totals.map(function(t,i){return t-itemScores[i];});
+            var corr = jStat.corrcoeff(itemScores, totalMinusItem);
+            results.push({Item:item,N:n,'Mean (Difficulty)':fmt(difficulty),'S.D.':fmt(jStat.stdev(itemScores,true)),'Item-Total Correlation':fmt(corr),'Quality':corr>=0.3?'Good':(corr>=0.2?'Acceptable':'Poor')});
+        });
+        state.results['item'] = {data:results, title:'Item Analysis: '+itemNames.length+' items, N='+n, extras:[]};
+        displayResults('item');
+    }
+    function runPathAnalysis() {
+        alert('Path Analysis requires SEM engine. กรุณาใช้ AI Chat เพื่อขอคำแนะนำหรือใช้ Multiple Regression เป็นทางเลือก');
+    }
+
     // Expose global functions for onclick handlers in HTML
     // =========================================================================
 
@@ -4233,5 +4837,21 @@
     window.openDemoIntervalConfig = openDemoIntervalConfig;
     window.closeDemoIntervalModal = closeDemoIntervalModal;
     window.applyDemoIntervals = applyDemoIntervals;
+    window.toggleFollowupChat = toggleFollowupChat;
+    window.sendFollowup = sendFollowup;
+    window.sendFollowupFromInput = sendFollowupFromInput;
+    window.toggleSampleSizeInputs = toggleSampleSizeInputs;
+
+    // =========================================================================
+    // Sample Size Calculator — toggle inputs based on formula
+    // =========================================================================
+    function toggleSampleSizeInputs() {
+        var formula = getSelectValue('ss-formula') || 'yamane';
+        var sections = ['yamane','cochran','krejcie','gpower','proportion'];
+        sections.forEach(function(s) {
+            var el = document.getElementById('ss-' + s + '-inputs');
+            if (el) el.style.display = (s === formula) ? '' : 'none';
+        });
+    }
 
 })();
