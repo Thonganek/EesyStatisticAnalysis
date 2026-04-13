@@ -245,7 +245,8 @@
             'fisher-exact': 'fe',
             'cochran-q': 'cq',
             'power-analysis':'pwr','welch-anova':'wa','dunnett':'dnt','median-test':'mdt',
-            'runs-test':'run','ks2':'ks2','cluster':'cls','discriminant':'da','missing':'miss','qqplot':'qq'
+            'runs-test':'run','ks2':'ks2','cluster':'cls','discriminant':'da','missing':'miss','qqplot':'qq',
+            'survival':'surv','time-series':'ts'
         };
     }
 
@@ -449,6 +450,11 @@
             {id:'cls-picker',filter:'numeric',label:'ตัวแปร (2+)'},
             {id:'da-group-picker',filter:'all',label:'Grouping (2 กลุ่ม)'},{id:'da-vars-picker',filter:'numeric',label:'Predictors'},
             {id:'qq-var-picker',filter:'numeric',label:'เลือกตัวแปร'},
+            {id:'surv-time-picker',filter:'numeric',label:'Time'},
+            {id:'surv-event-picker',filter:'numeric',label:'Event (0/1)'},
+            {id:'surv-group-picker',filter:'all',label:'Group (optional)'},
+            {id:'surv-cov-picker',filter:'numeric',label:'Covariates'},
+            {id:'ts-var-picker',filter:'numeric',label:'Value Variable'},
         ];
         pickerConfigs.forEach(function(cfg) {
             var el = document.getElementById(cfg.id);
@@ -1015,6 +1021,8 @@
                 case 'discriminant': runDiscriminant(); break;
                 case 'missing': runMissing(); break;
                 case 'qqplot': runQQPlot(); break;
+                case 'survival': runSurvival(); break;
+                case 'time-series': runTimeSeries(); break;
                 default:
                     alert('Analysis type "' + type + '" is not yet implemented.');
             }
@@ -1043,24 +1051,56 @@
             var isNumeric = numericVars.indexOf(varName) !== -1;
 
             if (isNumeric) {
-                // Numeric variable: show Mean, S.D., Min, Max
                 var values = getColumnData(varName, true);
                 if (values.length === 0) return;
                 var desc = Stats.descriptive(values);
-                rows.push({
-                    'ลำดับ': rowNum++,
-                    'คุณลักษณะ': varName,
-                    'รายการ': 'Mean = ' + fmt(desc.mean, 2) + ', S.D. = ' + fmt(desc.sd, 2),
-                    'จำนวน (n)': desc.n,
-                    'ร้อยละ': '-',
-                });
-                rows.push({
-                    'ลำดับ': '',
-                    'คุณลักษณะ': '',
-                    'รายการ': 'Min = ' + fmt(desc.min, 2) + ', Max = ' + fmt(desc.max, 2),
-                    'จำนวน (n)': '',
-                    'ร้อยละ': '',
-                });
+
+                // Check if custom intervals defined
+                var intervals = demoIntervalConfigs[varName];
+                if (intervals && intervals.length > 1) {
+                    // Group by intervals
+                    var isFirst = true;
+                    for (var b = 0; b < intervals.length - 1; b++) {
+                        var lo = intervals[b], hi = intervals[b + 1];
+                        var count = 0;
+                        values.forEach(function(v) {
+                            if (b < intervals.length - 2) {
+                                if (v >= lo && v < hi) count++;
+                            } else {
+                                if (v >= lo && v <= hi) count++;
+                            }
+                        });
+                        var pct = values.length > 0 ? (count / values.length * 100) : 0;
+                        var isInt = Number.isInteger(lo) && Number.isInteger(hi);
+                        var label;
+                        if (b < intervals.length - 2) {
+                            label = isInt ? (lo + ' - ' + (hi - 1)) : (lo + ' - ' + (hi - 0.01).toFixed(2));
+                        } else {
+                            label = isInt ? (lo + ' - ' + hi) : (lo + ' - ' + hi);
+                        }
+                        rows.push({
+                            'ลำดับ': isFirst ? rowNum : '',
+                            'คุณลักษณะ': isFirst ? varName : '',
+                            'รายการ': label,
+                            'จำนวน (n)': count,
+                            'ร้อยละ': fmt(pct, 1),
+                        });
+                        isFirst = false;
+                    }
+                    rowNum++;
+                } else {
+                    // Default: show Mean, S.D.
+                    rows.push({
+                        'ลำดับ': rowNum++, 'คุณลักษณะ': varName,
+                        'รายการ': 'Mean = ' + fmt(desc.mean, 2) + ', S.D. = ' + fmt(desc.sd, 2),
+                        'จำนวน (n)': desc.n, 'ร้อยละ': '-',
+                    });
+                    rows.push({
+                        'ลำดับ': '', 'คุณลักษณะ': '',
+                        'รายการ': 'Min = ' + fmt(desc.min, 2) + ', Max = ' + fmt(desc.max, 2),
+                        'จำนวน (n)': '', 'ร้อยละ': '',
+                    });
+                }
             } else {
                 // Categorical variable: frequency table
                 var valueCounts = {};
@@ -1369,6 +1409,7 @@
 
     // Interval config storage: { varName: { mode: 'auto'|'custom', bins: 5, breaks: [0,18,30,40,50] } }
     var intervalConfigs = {};
+    var demoIntervalConfigs = {};
 
     function openIntervalConfig() {
         var vars = getCheckedVars('intv-picker');
@@ -1452,6 +1493,69 @@
 
     function closeIntervalConfig() {
         document.getElementById('intv-modal').style.display = 'none';
+    }
+
+    // =========================================================================
+    // Demographics Interval Config
+    // =========================================================================
+
+    function openDemoIntervalConfig() {
+        var numVars = getCheckedVars('demo-numeric-picker');
+        if (numVars.length === 0) { alert('กรุณาเลือกตัวแปรเชิงปริมาณก่อน'); return; }
+
+        var body = document.getElementById('demo-interval-body');
+        var html = '';
+        numVars.forEach(function(varName) {
+            var values = getColumnData(varName, true);
+            var min = values.length > 0 ? Math.min.apply(null, values) : 0;
+            var max = values.length > 0 ? Math.max.apply(null, values) : 100;
+            var cfg = demoIntervalConfigs[varName];
+            var defaultBreaks = cfg ? cfg.join(',') : '';
+            if (!defaultBreaks) {
+                // Auto suggest nice breaks
+                var step = Math.ceil((max - min) / 5);
+                var start = Math.floor(min / step) * step;
+                var breaks = [];
+                for (var v = start; v <= max + step; v += step) breaks.push(v);
+                defaultBreaks = breaks.join(',');
+            }
+            html += '<div class="intv-var-config" data-var="' + varName + '">';
+            html += '<h4>📊 ' + varName + '</h4>';
+            html += '<div class="var-stats">N = ' + values.length + ' | Min = ' + fmt(min, 1) + ' | Max = ' + fmt(max, 1) + '</div>';
+            html += '<div style="margin-top:8px"><label style="font-size:0.82rem;font-weight:600;color:#475569">จุดแบ่ง (คั่นด้วยจุลภาค เช่น 20,30,40,50,60)</label>';
+            html += '<input type="text" class="intv-custom-breaks" value="' + defaultBreaks + '" style="width:100%;margin-top:4px">';
+            html += '<div style="font-size:0.75rem;color:#64748b;margin-top:4px">ตัวอย่าง: ถ้าใส่ 20,30,40,50,60 จะได้ช่วง 20-29, 30-39, 40-49, 50-60</div>';
+            html += '</div></div>';
+        });
+        body.innerHTML = html;
+        document.getElementById('demo-interval-modal').style.display = 'flex';
+    }
+
+    function closeDemoIntervalModal() {
+        document.getElementById('demo-interval-modal').style.display = 'none';
+    }
+
+    function applyDemoIntervals() {
+        var cards = document.querySelectorAll('#demo-interval-body .intv-var-config');
+        demoIntervalConfigs = {};
+        var previewHtml = '<div class="intv-preview-pills">';
+        cards.forEach(function(card) {
+            var varName = card.getAttribute('data-var');
+            var breaksInput = card.querySelector('.intv-custom-breaks');
+            var breaks = breaksInput ? breaksInput.value.trim() : '';
+            if (breaks) {
+                var arr = breaks.split(',').map(function(s){return parseFloat(s.trim());}).filter(function(n){return !isNaN(n);});
+                arr.sort(function(a,b){return a-b;});
+                if (arr.length >= 2) {
+                    demoIntervalConfigs[varName] = arr;
+                    previewHtml += '<span class="intv-preview-pill">' + varName + ': ' + arr.join(', ') + '</span>';
+                }
+            }
+        });
+        previewHtml += '</div>';
+        var preview = document.getElementById('demo-interval-preview');
+        if (preview) preview.innerHTML = previewHtml;
+        closeDemoIntervalModal();
     }
 
     function runInterval() {
@@ -3968,6 +4072,127 @@
     });
 
     // =========================================================================
+    // =========================================================================
+    // Survival Analysis
+    // =========================================================================
+
+    function runSurvival() {
+        var timeVar = getPickerValue('surv-time-picker','surv-time');
+        var eventVar = getPickerValue('surv-event-picker','surv-event');
+        if (!timeVar || !eventVar) { alert('กรุณาเลือก Time และ Event variables'); return; }
+
+        var time = getColumnData(timeVar, true);
+        var event = getColumnData(eventVar, true).map(function(v){return v>=0.5?1:0;});
+        var n = Math.min(time.length, event.length);
+        time = time.slice(0,n); event = event.slice(0,n);
+
+        var km = Stats.kaplanMeier(time, event);
+        if (!km) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
+
+        var extras = [];
+
+        // KM Summary
+        var summaryRows = [{'N':km.n, 'Events':km.totalEvents, 'Censored':km.totalCensored,
+            'Median Survival':km.medianSurvival!==null?fmt(km.medianSurvival):'Not reached',
+            'Mean Survival':fmt(km.meanSurvival)}];
+        extras.push({title:'Kaplan-Meier Summary', data:summaryRows});
+
+        // Survival curve chart
+        var canvas = document.getElementById('surv-canvas');
+        if (canvas && window.Chart) {
+            if (window._survChart) window._survChart.destroy();
+            var pts = km.curve.map(function(p){return {x:p.time, y:p.survival};});
+            window._survChart = new Chart(canvas, {
+                type:'line',
+                data:{datasets:[{label:'Survival Probability',data:pts,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,0.1)',fill:true,stepped:'before',pointRadius:2}]},
+                options:{responsive:true,scales:{x:{title:{display:true,text:'Time'}},y:{title:{display:true,text:'Survival Probability'},min:0,max:1}},plugins:{title:{display:true,text:'Kaplan-Meier Survival Curve'}}}
+            });
+        }
+
+        // Log-Rank test if group variable selected
+        var groupVar = getPickerValue('surv-group-picker','surv-group');
+        var mainRows = [];
+        if (groupVar) {
+            var groupData = state.data.map(function(r){return r[groupVar];});
+            var groups = {};
+            groupData.forEach(function(g,i){if(i<n){if(!groups[g])groups[g]={t:[],e:[]};groups[g].t.push(time[i]);groups[g].e.push(event[i]);}});
+            var gNames = Object.keys(groups);
+            if (gNames.length === 2) {
+                var lr = Stats.logRankTest(groups[gNames[0]].t, groups[gNames[0]].e, groups[gNames[1]].t, groups[gNames[1]].e);
+                if (lr) {
+                    mainRows.push({'Test':'Log-Rank', 'Chi-Square':fmt(lr.chi2), 'df':lr.df, 'p-value':Stats.formatPValue(lr.p), 'Sig.':lr.significant?'✓':''});
+                    extras.push({title:'Group Comparison',data:[
+                        {Group:gNames[0],N:lr.group1.n,Events:lr.group1.events,Median:lr.group1.median!==null?fmt(lr.group1.median):'NR'},
+                        {Group:gNames[1],N:lr.group2.n,Events:lr.group2.events,Median:lr.group2.median!==null?fmt(lr.group2.median):'NR'}
+                    ]});
+                }
+            }
+        }
+
+        // Cox regression if covariates selected
+        var covVars = getCheckedVars('surv-cov-picker');
+        if (covVars.length > 0) {
+            var covData = covVars.map(function(v){return getColumnData(v,true).slice(0,n);});
+            var cox = Stats.coxRegression(time, event, covData, covVars);
+            if (cox && cox.coefficients) {
+                var coxRows = cox.coefficients.map(function(c){
+                    return {Variable:c.variable, B:fmt(c.b), 'S.E.':fmt(c.se), 'HR':fmt(c.hr), '95% CI (HR)':c.hrCI, Wald:fmt(c.wald), 'p-value':Stats.formatPValue(c.p), 'Sig.':c.significant?'✓':''};
+                });
+                extras.push({title:'Cox Regression', data:coxRows});
+            }
+        }
+
+        if (mainRows.length === 0) mainRows = summaryRows;
+        state.results['surv'] = {data:mainRows, title:'Survival Analysis', extras:extras};
+        displayResults('surv');
+    }
+
+    // =========================================================================
+    // Time Series Analysis
+    // =========================================================================
+
+    function runTimeSeries() {
+        var varName = getPickerValue('ts-var-picker','ts-var');
+        if (!varName) { alert('กรุณาเลือกตัวแปร'); return; }
+        var period = parseInt(document.getElementById('ts-period').value) || 12;
+        var values = getColumnData(varName, true);
+        if (values.length < period * 2) { alert('ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย ' + (period*2) + ' ค่า)'); return; }
+
+        var result = Stats.timeSeries(values, period);
+        if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
+
+        // Chart
+        var canvas = document.getElementById('ts-canvas');
+        if (canvas && window.Chart) {
+            if (window._tsChart) window._tsChart.destroy();
+            var labels = result.decomposition.map(function(d){return d.t;});
+            window._tsChart = new Chart(canvas, {
+                type:'line',
+                data:{labels:labels,datasets:[
+                    {label:'Original',data:result.decomposition.map(function(d){return d.original;}),borderColor:'#2563eb',borderWidth:2,pointRadius:1,fill:false},
+                    {label:'Trend',data:result.decomposition.map(function(d){return d.trend;}),borderColor:'#dc2626',borderWidth:2,borderDash:[5,5],pointRadius:0,fill:false},
+                    {label:'Forecast',data:new Array(values.length).fill(null).concat(result.forecast.map(function(f){return f.forecast;})),borderColor:'#059669',borderWidth:2,borderDash:[3,3],pointRadius:0,fill:false}
+                ]},
+                options:{responsive:true,plugins:{title:{display:true,text:'Time Series: '+varName}}}
+            });
+        }
+
+        var extras = [];
+        // Trend info
+        extras.push({title:'Trend & Model Summary',data:[{
+            'Trend Slope':fmt(result.trend.slope),'Intercept':fmt(result.trend.intercept),
+            'Period':result.period,'RMSE':fmt(result.rmse),'ACF(1)':fmt(result.acf1),'N':result.n
+        }]});
+        // Seasonal pattern
+        var seasonRows = result.seasonal.pattern.map(function(s,i){return {'Period Position':i+1,'Seasonal Effect':fmt(s)};});
+        extras.push({title:'Seasonal Component',data:seasonRows});
+        // Forecast
+        var forecastRows = result.forecast.map(function(f){return {'Period':f.period,'Trend':fmt(f.trend),'Seasonal':fmt(f.seasonal),'Forecast':fmt(f.forecast)};});
+
+        state.results['ts'] = {data:forecastRows, title:'Time Series Forecast (Next '+period+' periods)', extras:extras};
+        displayResults('ts');
+    }
+
     // Expose global functions for onclick handlers in HTML
     // =========================================================================
 
@@ -4005,5 +4230,8 @@
     window.closeIntervalConfig = closeIntervalConfig;
     window.applyIntervalConfig = applyIntervalConfig;
     window.toggleIntvMode = toggleIntvMode;
+    window.openDemoIntervalConfig = openDemoIntervalConfig;
+    window.closeDemoIntervalModal = closeDemoIntervalModal;
+    window.applyDemoIntervals = applyDemoIntervals;
 
 })();

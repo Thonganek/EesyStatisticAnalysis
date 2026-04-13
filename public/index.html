@@ -183,6 +183,8 @@
                     <button class="menu-item" onclick="navigateTo('discriminant')">Discriminant Analysis</button>
                     <button class="menu-item" onclick="navigateTo('missing')">Missing Value Analysis</button>
                     <button class="menu-item" onclick="navigateTo('qqplot')">Q-Q Plot</button>
+                    <button class="menu-item" onclick="navigateTo('survival')">Survival Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('time-series')">Time Series</button>
                 </div>
             </div>
 
@@ -293,8 +295,26 @@
                     <div id="demo-numeric-picker"></div>
                 </div>
 
+                <button class="btn btn-export" type="button" onclick="openDemoIntervalConfig()" style="margin-bottom:12px">⚙️ ตั้งค่าช่วงตัวแปรเชิงปริมาณ (เช่น อายุ 20-29, 30-39)</button>
+                <div id="demo-interval-preview"></div>
                 <button class="btn btn-primary" onclick="runAnalysis('demographics')">สร้างตาราง</button>
             </div>
+
+<div id="demo-interval-modal" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>⚙️ ตั้งค่าช่วงตัวแปรเชิงปริมาณ</h3>
+            <button class="modal-close" onclick="closeDemoIntervalModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="demo-interval-body">
+            <p class="text-muted">เลือกตัวแปรเชิงปริมาณก่อน แล้วกดปุ่มตั้งค่า</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="applyDemoIntervals()">✅ ตกลง</button>
+            <button class="btn btn-export" onclick="closeDemoIntervalModal()">ยกเลิก</button>
+        </div>
+    </div>
+</div>
 
             <div id="demo-results" class="results-area">
                 <div id="demo-extras"></div>
@@ -2561,6 +2581,57 @@
     </div>
     <div id="qq-chart" style="max-width:600px;margin:20px auto"><canvas id="qq-canvas"></canvas></div>
     <div id="qq-results" class="results-area"><div id="qq-extras"></div><div id="qq-table"></div></div>
+</div>
+
+<!-- SURVIVAL ANALYSIS -->
+<div class="page" id="page-survival">
+    <h2 class="page-title">📈 Survival Analysis</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วิเคราะห์ระยะเวลาจนเกิดเหตุการณ์ (time-to-event)</p>
+            <p><strong>เครื่องมือ:</strong> Kaplan-Meier curve, Log-Rank test, Cox Regression</p>
+            <p><strong>ตัวอย่าง:</strong> ระยะเวลารอดชีวิต, เวลาจนลาออก, เวลาจนเครื่องเสีย</p>
+            <p><strong>ข้อมูล:</strong> Time (ระยะเวลา) + Event (0=censored, 1=เกิดเหตุ) + Group (ถ้าเปรียบเทียบ)</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Time Variable (ระยะเวลา)</label>
+            <select id="surv-time" class="var-select" style="display:none"></select><div id="surv-time-picker"></div></div>
+        <div class="form-group"><label>Event Variable (0=censored, 1=event)</label>
+            <select id="surv-event" class="var-select" style="display:none"></select><div id="surv-event-picker"></div></div>
+        <div class="form-group"><label>Group Variable (optional — for Log-Rank test)</label>
+            <select id="surv-group" class="var-select" style="display:none"></select><div id="surv-group-picker"></div></div>
+        <div class="form-group"><label>Covariates for Cox Regression (optional)</label>
+            <select id="surv-cov" class="var-select" multiple style="display:none"></select><div id="surv-cov-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('survival')">Run Survival Analysis</button>
+    </div>
+    <div id="surv-chart" style="max-width:650px;margin:20px auto"><canvas id="surv-canvas"></canvas></div>
+    <div id="surv-results" class="results-area"><div id="surv-extras"></div><div id="surv-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="surv-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('surv')">🤖 AI วิเคราะห์ผล</button><div id="surv-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('surv')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('surv')">📥 Word</button></div></div>
+</div>
+
+<!-- TIME SERIES -->
+<div class="page" id="page-time-series">
+    <h2 class="page-title">📈 Time Series Analysis</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วิเคราะห์แนวโน้ม ฤดูกาล และพยากรณ์ข้อมูลอนุกรมเวลา</p>
+            <p><strong>เครื่องมือ:</strong> Trend, Seasonal decomposition, Moving Average, Forecast</p>
+            <p><strong>ตัวอย่าง:</strong> ยอมขายรายเดือน, จำนวนผู้ป่วยรายสัปดาห์</p>
+        </div></details>
+    <div class="card">
+        <div class="form-group"><label>Value Variable (ค่าที่วัด)</label>
+            <select id="ts-var" class="var-select" style="display:none"></select><div id="ts-var-picker"></div></div>
+        <div class="form-group"><label>Period (จำนวนช่วงต่อรอบ เช่น 12=รายเดือน, 4=รายไตรมาส)</label>
+            <input type="number" id="ts-period" class="form-input" value="12" min="2" max="365"></div>
+        <button class="btn btn-primary" onclick="runAnalysis('time-series')">Run Time Series Analysis</button>
+    </div>
+    <div id="ts-chart" style="max-width:700px;margin:20px auto"><canvas id="ts-canvas"></canvas></div>
+    <div id="ts-results" class="results-area"><div id="ts-extras"></div><div id="ts-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="ts-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('ts')">🤖 AI วิเคราะห์ผล</button><div id="ts-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('ts')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('ts')">📥 Word</button></div></div>
 </div>
 
         <!-- ================================================== -->

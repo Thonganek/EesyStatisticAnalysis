@@ -2660,4 +2660,234 @@
         return {variables: results, totalCells: totalCells, totalMissing: totalMissing, overallPct: totalCells>0?totalMissing/totalCells*100:0};
     };
 
+    Stats.kaplanMeier = function(time, event) {
+        // time = array of survival times
+        // event = array of 0 (censored) or 1 (event occurred)
+        if (!time || !event || time.length !== event.length || time.length < 2) return null;
+        var n = time.length;
+
+        // Create sorted event table
+        var data = [];
+        for (var i = 0; i < n; i++) data.push({time: time[i], event: event[i]});
+        data.sort(function(a, b) { return a.time - b.time; });
+
+        // Unique event times
+        var uniqueTimes = [];
+        var seen = {};
+        data.forEach(function(d) { if (!seen[d.time]) { seen[d.time] = true; uniqueTimes.push(d.time); } });
+
+        var atRisk = n;
+        var survivalProb = 1.0;
+        var curve = [{time: 0, survival: 1.0, atRisk: n, events: 0, censored: 0}];
+        var medianSurvival = null;
+
+        uniqueTimes.forEach(function(t) {
+            var events = 0, censored = 0;
+            data.forEach(function(d) {
+                if (d.time === t) {
+                    if (d.event === 1) events++;
+                    else censored++;
+                }
+            });
+
+            if (events > 0) {
+                survivalProb *= (atRisk - events) / atRisk;
+            }
+
+            curve.push({
+                time: t, survival: survivalProb, atRisk: atRisk,
+                events: events, censored: censored,
+                se: survivalProb * Math.sqrt(events / (atRisk * (atRisk - events + 0.001)))
+            });
+
+            if (medianSurvival === null && survivalProb <= 0.5) medianSurvival = t;
+            atRisk -= (events + censored);
+        });
+
+        var totalEvents = event.filter(function(e) { return e === 1; }).length;
+        var totalCensored = n - totalEvents;
+        var meanSurvival = curve.reduce(function(acc, pt, i) {
+            if (i === 0) return 0;
+            return acc + (curve[i-1].survival) * (pt.time - curve[i-1].time);
+        }, 0);
+
+        return {
+            curve: curve, n: n,
+            totalEvents: totalEvents, totalCensored: totalCensored,
+            medianSurvival: medianSurvival,
+            meanSurvival: meanSurvival
+        };
+    };
+
+    Stats.logRankTest = function(time1, event1, time2, event2) {
+        // Compare 2 survival curves
+        if (!time1 || !time2) return null;
+        var km1 = Stats.kaplanMeier(time1, event1);
+        var km2 = Stats.kaplanMeier(time2, event2);
+        if (!km1 || !km2) return null;
+
+        // Combine all unique times
+        var allTimes = {};
+        km1.curve.forEach(function(p) { allTimes[p.time] = true; });
+        km2.curve.forEach(function(p) { allTimes[p.time] = true; });
+        var times = Object.keys(allTimes).map(Number).sort(function(a,b){return a-b;});
+
+        var O1 = 0, E1 = 0; // observed and expected events in group 1
+        var n1 = time1.length, n2 = time2.length;
+        var r1 = n1, r2 = n2;
+
+        times.forEach(function(t) {
+            var d1 = 0, d2 = 0, c1 = 0, c2 = 0;
+            for (var i = 0; i < time1.length; i++) {
+                if (time1[i] === t) { if (event1[i] === 1) d1++; else c1++; }
+            }
+            for (var i = 0; i < time2.length; i++) {
+                if (time2[i] === t) { if (event2[i] === 1) d2++; else c2++; }
+            }
+            var d = d1 + d2;
+            var r = r1 + r2;
+            if (r > 0 && d > 0) {
+                O1 += d1;
+                E1 += r1 * d / r;
+            }
+            r1 -= (d1 + c1);
+            r2 -= (d2 + c2);
+        });
+
+        var chi2 = E1 > 0 ? Math.pow(O1 - E1, 2) / E1 : 0;
+        // Add second group contribution
+        var O2 = km2.totalEvents;
+        var E2 = O1 + O2 - E1;
+        if (E2 > 0) chi2 += Math.pow(O2 - E2, 2) / E2;
+
+        var p = 1 - jStat.chisquare.cdf(chi2, 1);
+
+        return {
+            chi2: chi2, df: 1, p: p, significant: p < 0.05,
+            group1: {n: time1.length, events: km1.totalEvents, median: km1.medianSurvival},
+            group2: {n: time2.length, events: km2.totalEvents, median: km2.medianSurvival}
+        };
+    };
+
+    Stats.coxRegression = function(time, event, covariates, covNames) {
+        // Simplified Cox PH: univariate approximation per covariate
+        if (!time || !event || !covariates || covariates.length === 0) return null;
+        var n = time.length;
+        var results = [];
+
+        covariates.forEach(function(cov, idx) {
+            // Split by median of covariate
+            var sorted = cov.slice().sort(function(a,b){return a-b;});
+            var med = sorted[Math.floor(sorted.length/2)];
+            var t1=[], e1=[], t2=[], e2=[];
+            for (var i = 0; i < n; i++) {
+                if (cov[i] <= med) { t1.push(time[i]); e1.push(event[i]); }
+                else { t2.push(time[i]); e2.push(event[i]); }
+            }
+            var lr = Stats.logRankTest(t1, e1, t2, e2);
+            // Approximate HR from log-rank
+            var events1 = e1.filter(function(e){return e===1;}).length;
+            var events2 = e2.filter(function(e){return e===1;}).length;
+            var rate1 = events1 / (t1.reduce(function(a,b){return a+b;},0) || 1);
+            var rate2 = events2 / (t2.reduce(function(a,b){return a+b;},0) || 1);
+            var hr = rate2 > 0 ? rate1 / rate2 : 1;
+            var b = Math.log(hr);
+            var se = Math.abs(b) > 0 && lr ? Math.abs(b) / Math.sqrt(lr.chi2 + 0.001) : 0;
+
+            results.push({
+                variable: covNames ? covNames[idx] : 'X'+(idx+1),
+                b: b, se: se, hr: hr,
+                hrCI: Stats.formatCI(hr * Math.exp(-1.96*se), hr * Math.exp(1.96*se)),
+                wald: se > 0 ? Math.pow(b/se, 2) : 0,
+                p: lr ? lr.p : 1,
+                significant: lr ? lr.significant : false
+            });
+        });
+
+        return {n: n, events: event.filter(function(e){return e===1;}).length, coefficients: results};
+    };
+
+    Stats.timeSeries = function(values, period) {
+        period = period || 12;
+        if (!values || values.length < period * 2) return null;
+        var n = values.length;
+
+        // Moving average
+        var ma = [];
+        var halfP = Math.floor(period / 2);
+        for (var i = 0; i < n; i++) {
+            if (i < halfP || i >= n - halfP) { ma.push(null); continue; }
+            var sum = 0, count = 0;
+            for (var j = i - halfP; j <= i + halfP && j < n; j++) { sum += values[j]; count++; }
+            ma.push(sum / count);
+        }
+
+        // Linear trend
+        var xMean = (n - 1) / 2;
+        var yMean = values.reduce(function(a,b){return a+b;},0) / n;
+        var num = 0, den = 0;
+        for (var i = 0; i < n; i++) {
+            num += (i - xMean) * (values[i] - yMean);
+            den += (i - xMean) * (i - xMean);
+        }
+        var slope = den > 0 ? num / den : 0;
+        var intercept = yMean - slope * xMean;
+        var trend = [];
+        for (var i = 0; i < n; i++) trend.push(intercept + slope * i);
+
+        // Detrended = original - trend
+        var detrended = values.map(function(v, i) { return v - trend[i]; });
+
+        // Seasonal component (average of detrended by position in period)
+        var seasonal = new Array(n).fill(0);
+        var seasonalAvg = new Array(period).fill(0);
+        var seasonalCount = new Array(period).fill(0);
+        for (var i = 0; i < n; i++) {
+            var pos = i % period;
+            seasonalAvg[pos] += detrended[i];
+            seasonalCount[pos]++;
+        }
+        for (var p = 0; p < period; p++) {
+            seasonalAvg[p] = seasonalCount[p] > 0 ? seasonalAvg[p] / seasonalCount[p] : 0;
+        }
+        // Center seasonal
+        var sMean = seasonalAvg.reduce(function(a,b){return a+b;},0) / period;
+        for (var p = 0; p < period; p++) seasonalAvg[p] -= sMean;
+        for (var i = 0; i < n; i++) seasonal[i] = seasonalAvg[i % period];
+
+        // Residual = original - trend - seasonal
+        var residual = values.map(function(v, i) { return v - trend[i] - seasonal[i]; });
+
+        // Forecast next period
+        var forecast = [];
+        for (var i = 0; i < period; i++) {
+            var trendVal = intercept + slope * (n + i);
+            var seasonVal = seasonalAvg[((n + i) % period)];
+            forecast.push({period: n + i + 1, trend: trendVal, seasonal: seasonVal, forecast: trendVal + seasonVal});
+        }
+
+        // Autocorrelation (lag 1)
+        var rMean = residual.reduce(function(a,b){return a+b;},0) / n;
+        var acNum = 0, acDen = 0;
+        for (var i = 1; i < n; i++) acNum += (residual[i] - rMean) * (residual[i-1] - rMean);
+        for (var i = 0; i < n; i++) acDen += (residual[i] - rMean) * (residual[i] - rMean);
+        var acf1 = acDen > 0 ? acNum / acDen : 0;
+
+        // RMSE
+        var rmse = Math.sqrt(residual.reduce(function(a,b){return a+b*b;},0) / n);
+
+        return {
+            n: n, period: period,
+            trend: {slope: slope, intercept: intercept, values: trend},
+            seasonal: {pattern: seasonalAvg, values: seasonal},
+            residual: residual,
+            movingAverage: ma,
+            forecast: forecast,
+            acf1: acf1, rmse: rmse,
+            decomposition: values.map(function(v, i) {
+                return {t: i+1, original: v, trend: trend[i], seasonal: seasonal[i], residual: residual[i], ma: ma[i]};
+            })
+        };
+    };
+
 })();
