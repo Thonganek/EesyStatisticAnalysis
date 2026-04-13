@@ -243,7 +243,9 @@
             'split-half': 'sh',
             'mcnemar': 'mcn',
             'fisher-exact': 'fe',
-            'cochran-q': 'cq'
+            'cochran-q': 'cq',
+            'power-analysis':'pwr','welch-anova':'wa','dunnett':'dnt','median-test':'mdt',
+            'runs-test':'run','ks2':'ks2','cluster':'cls','discriminant':'da','missing':'miss','qqplot':'qq'
         };
     }
 
@@ -439,6 +441,14 @@
             // Demographics
             {id: 'demo-picker', filter: 'all', label: 'เลือกตัวแปรคุณลักษณะส่วนบุคคล'},
             {id: 'demo-numeric-picker', filter: 'numeric', label: 'ตัวแปรที่เป็นตัวเลข (แสดง Mean, S.D.)'},
+            {id:'wa-dv-picker',filter:'numeric',label:'DV'},{id:'wa-iv-picker',filter:'all',label:'Factor'},
+            {id:'dnt-dv-picker',filter:'numeric',label:'DV'},{id:'dnt-iv-picker',filter:'all',label:'Factor'},
+            {id:'mdt-dv-picker',filter:'numeric',label:'DV'},{id:'mdt-iv-picker',filter:'all',label:'Factor'},
+            {id:'run-picker',filter:'numeric',label:'เลือกตัวแปร'},
+            {id:'ks2-dv-picker',filter:'numeric',label:'DV'},{id:'ks2-iv-picker',filter:'all',label:'Grouping'},
+            {id:'cls-picker',filter:'numeric',label:'ตัวแปร (2+)'},
+            {id:'da-group-picker',filter:'all',label:'Grouping (2 กลุ่ม)'},{id:'da-vars-picker',filter:'numeric',label:'Predictors'},
+            {id:'qq-var-picker',filter:'numeric',label:'เลือกตัวแปร'},
         ];
         pickerConfigs.forEach(function(cfg) {
             var el = document.getElementById(cfg.id);
@@ -995,6 +1005,16 @@
                 case 'mcnemar': runMcNemar(); break;
                 case 'fisher-exact': runFisherExact(); break;
                 case 'cochran-q': runCochranQ(); break;
+                case 'power-analysis': runPowerAnalysis(); break;
+                case 'welch-anova': runWelchAnova(); break;
+                case 'dunnett': runDunnett(); break;
+                case 'median-test': runMedianTest(); break;
+                case 'runs-test': runRunsTest(); break;
+                case 'ks2': runKS2(); break;
+                case 'cluster': runCluster(); break;
+                case 'discriminant': runDiscriminant(); break;
+                case 'missing': runMissing(); break;
+                case 'qqplot': runQQPlot(); break;
                 default:
                     alert('Analysis type "' + type + '" is not yet implemented.');
             }
@@ -3381,6 +3401,176 @@
 
         state.results['cq'] = {data:rows, title:"Cochran's Q Test", extras:extras};
         displayResults('cq');
+    }
+
+    // =========================================================================
+    // New Analysis Functions
+    // =========================================================================
+
+    function runPowerAnalysis() {
+        var test = getSelectValue('pwr-test')||'ttest';
+        var es = parseFloat(document.getElementById('pwr-es').value)||0.5;
+        var alpha = parseFloat(document.getElementById('pwr-alpha').value)||0.05;
+        var power = parseFloat(document.getElementById('pwr-power').value)||0.80;
+        var groups = parseInt(document.getElementById('pwr-groups').value)||3;
+        var result = Stats.powerAnalysis(test,{effectSize:es,alpha:alpha,power:power,groups:groups});
+        if(!result){alert('ไม่สามารถคำนวณได้');return;}
+        var rows=[{'Test':result.test,'Effect Size':fmt(es),'Alpha':alpha,'Power':power,
+            'N per Group':result.nPerGroup||result.n,'Total N':result.totalN}];
+        state.results['pwr']={data:rows,title:'Power Analysis — Required Sample Size'};
+        displayResults('pwr');
+    }
+
+    function runWelchAnova() {
+        var dv=getPickerValue('wa-dv-picker','wa-dv'),iv=getPickerValue('wa-iv-picker','wa-iv');
+        if(!dv||!iv){alert('กรุณาเลือก DV และ Factor');return;}
+        var split=splitByGroup(dv,iv),gNames=split.groupNames;
+        if(gNames.length<3){alert('ต้องมีอย่างน้อย 3 กลุ่ม');return;}
+        var groups=gNames.map(function(name){return split.groups[name];});
+        var result=Stats.welchAnova(groups,gNames);
+        if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
+        var extras=[{title:'Descriptive',data:result.descriptives.map(function(d){
+            return{Group:d.group,N:d.n,Mean:fmt(d.mean),'S.D.':fmt(Math.sqrt(d.variance)),Variance:fmt(d.variance)};})}];
+        var rows=[{'Welch F':fmt(result.F),'df1':fmt(result.df1,0),'df2':fmt(result.df2,2),
+            'p-value':Stats.formatPValue(result.p),'Sig.':result.significant?'✓':''}];
+        state.results['wa']={data:rows,title:"Welch's ANOVA",extras:extras};
+        displayResults('wa');
+    }
+
+    function runDunnett() {
+        var dv=getPickerValue('dnt-dv-picker','dnt-dv'),iv=getPickerValue('dnt-iv-picker','dnt-iv');
+        if(!dv||!iv){alert('กรุณาเลือก DV และ Factor');return;}
+        var split=splitByGroup(dv,iv),gNames=split.groupNames;
+        if(gNames.length<2){alert('ต้องมีอย่างน้อย 2 กลุ่ม');return;}
+        var groups=gNames.map(function(name){return split.groups[name];});
+        var result=Stats.dunnettTest(groups,gNames,0);
+        if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
+        var rows=result.map(function(r){return{
+            'Group':r.group,'Control':r.control,'Mean(Group)':fmt(r.meanGroup),'Mean(Control)':fmt(r.meanControl),
+            'Mean Diff':fmt(r.meanDiff),'t':fmt(r.t),'df':r.df,'p-value':Stats.formatPValue(r.p),
+            'p(adjusted)':Stats.formatPValue(r.pAdjusted),'Sig.':r.significant?'✓':''};});
+        state.results['dnt']={data:rows,title:"Dunnett's Test (Control: "+gNames[0]+")"};
+        displayResults('dnt');
+    }
+
+    function runMedianTest() {
+        var dv=getPickerValue('mdt-dv-picker','mdt-dv'),iv=getPickerValue('mdt-iv-picker','mdt-iv');
+        if(!dv||!iv){alert('กรุณาเลือก DV และ Factor');return;}
+        var split=splitByGroup(dv,iv),gNames=split.groupNames;
+        var groups=gNames.map(function(name){return split.groups[name];});
+        var result=Stats.medianTest(groups,gNames);
+        if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
+        var extras=[{title:'Group Counts',data:result.groupStats.map(function(g){
+            return{Group:g.group,N:g.n,'Above Median':g.above,'At/Below Median':g.below};})}];
+        var rows=[{'Grand Median':fmt(result.grandMedian),'Chi-Square':fmt(result.chi2),'df':result.df,
+            'p-value':Stats.formatPValue(result.p),'Sig.':result.significant?'✓':''}];
+        state.results['mdt']={data:rows,title:'Median Test',extras:extras};
+        displayResults('mdt');
+    }
+
+    function runRunsTest() {
+        var vars=getCheckedVars('run-picker');
+        if(vars.length===0){alert('กรุณาเลือกตัวแปร');return;}
+        var rows=[];
+        vars.forEach(function(v){
+            var values=getColumnData(v,true);
+            if(values.length<10)return;
+            var result=Stats.runsTest(values);
+            if(!result)return;
+            rows.push({Variable:v,N:result.n,'Runs':result.runs,'Expected Runs':fmt(result.expectedRuns),
+                'Z':fmt(result.z),'p-value':Stats.formatPValue(result.p),'Random?':result.random?'✅ Yes':'⚠️ No'});
+        });
+        state.results['run']={data:rows,title:'Runs Test (Randomness)'};
+        displayResults('run');
+    }
+
+    function runKS2() {
+        var dv=getPickerValue('ks2-dv-picker','ks2-dv'),iv=getPickerValue('ks2-iv-picker','ks2-iv');
+        if(!dv||!iv){alert('กรุณาเลือก DV และ Grouping');return;}
+        var split=splitByGroup(dv,iv),gNames=split.groupNames;
+        if(gNames.length!==2){alert('ต้องมี 2 กลุ่มเท่านั้น');return;}
+        var g1=split.groups[gNames[0]],g2=split.groups[gNames[1]];
+        var result=Stats.ks2Sample(g1,g2);
+        if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
+        var rows=[{'Group 1':gNames[0]+' (n='+result.n1+')','Group 2':gNames[1]+' (n='+result.n2+')',
+            'D':fmt(result.D),'p-value':Stats.formatPValue(result.p),
+            'Same Distribution?':result.significant?'⚠️ No (Different)':'✅ Yes (Same)'}];
+        state.results['ks2']={data:rows,title:'Kolmogorov-Smirnov 2-Sample Test'};
+        displayResults('ks2');
+    }
+
+    function runCluster() {
+        var vars=getCheckedVars('cls-picker');
+        if(vars.length<2){alert('กรุณาเลือกตัวแปรอย่างน้อย 2 ตัว');return;}
+        var k=parseInt(document.getElementById('cls-k').value)||3;
+        var dataArrays=vars.map(function(v){return getColumnData(v,true);});
+        var result=Stats.kMeans(dataArrays,vars,k);
+        if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
+        var rows=result.clusters.map(function(c){
+            var row={'Cluster':c.cluster,'N':c.n};
+            vars.forEach(function(v){row['Mean('+v+')']=fmt(c.means[v]);});
+            return row;
+        });
+        var extras=[{title:'',html:'<div class="detail-box"><strong>K-Means Clustering:</strong> '+result.k+' clusters, '+result.n+' observations, '+result.iterations+' iterations</div>'}];
+        state.results['cls']={data:rows,title:'Cluster Analysis (K='+k+')',extras:extras};
+        displayResults('cls');
+    }
+
+    function runDiscriminant() {
+        var groupVar=getPickerValue('da-group-picker','da-group');
+        var predVars=getCheckedVars('da-vars-picker');
+        if(!groupVar||predVars.length<1){alert('กรุณาเลือก Grouping Variable และ Predictors');return;}
+        var groupData=state.data.map(function(r){return r[groupVar];});
+        var dataArrays=predVars.map(function(v){return getColumnData(v,true);});
+        var result=Stats.discriminantAnalysis(dataArrays,predVars,groupData);
+        if(!result||result.error){alert(result?result.error:'ไม่สามารถวิเคราะห์ได้');return;}
+        var extras=[];
+        if(result.groupMeans)extras.push({title:'Group Means',data:result.groupMeans});
+        var rows=[{"Wilks' Lambda":fmt(result.wilksLambda),'F':fmt(result.F),'df1':result.df1,'df2':result.df2,
+            'p-value':Stats.formatPValue(result.p),'Accuracy':fmt(result.accuracy,1)+'%','Correct':result.correct+'/'+result.n}];
+        state.results['da']={data:rows,title:'Discriminant Analysis',extras:extras};
+        displayResults('da');
+    }
+
+    function runMissing() {
+        if(!state.data){alert('กรุณา Upload ข้อมูลก่อน');return;}
+        var result=Stats.missingValueAnalysis(state.data,state.columns);
+        if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
+        var rows=result.variables.map(function(v){return{
+            Variable:v.variable,N:v.n,Valid:v.valid,Missing:v.missing,
+            'Missing %':fmt(v.missingPct,1)+'%',Status:v.status};});
+        var extras=[{title:'',html:'<div class="detail-box"><strong>Overall:</strong> '+result.totalCells+' cells, '+result.totalMissing+' missing ('+fmt(result.overallPct,1)+'%)</div>'}];
+        state.results['miss']={data:rows,title:'Missing Value Analysis',extras:extras};
+        displayResults('miss');
+    }
+
+    function runQQPlot() {
+        var varName=getPickerValue('qq-var-picker','qq-var');
+        if(!varName){alert('กรุณาเลือกตัวแปร');return;}
+        var values=getColumnData(varName,true);
+        var result=Stats.qqPlotData(values);
+        if(!result){alert('ไม่สามารถสร้าง Q-Q Plot ได้');return;}
+        var canvas=document.getElementById('qq-canvas');
+        if(canvas&&window.Chart){
+            if(window._qqChart)window._qqChart.destroy();
+            var pts=result.points.map(function(p){return{x:p.theoretical,y:p.observed};});
+            var minV=Math.min(pts[0].x,pts[0].y)-0.5,maxV=Math.max(pts[pts.length-1].x,pts[pts.length-1].y)+0.5;
+            window._qqChart=new Chart(canvas,{
+                type:'scatter',
+                data:{datasets:[
+                    {label:'Data Points',data:pts,backgroundColor:'rgba(37,99,235,0.6)',pointRadius:4,showLine:false},
+                    {label:'Reference Line',data:[{x:minV,y:minV},{x:maxV,y:maxV}],showLine:true,borderColor:'#dc2626',borderDash:[5,5],pointRadius:0,borderWidth:2}
+                ]},
+                options:{responsive:true,scales:{x:{title:{display:true,text:'Theoretical Quantiles'}},y:{title:{display:true,text:'Sample Quantiles'}}},
+                    plugins:{title:{display:true,text:'Q-Q Plot: '+varName+' (N='+result.n+')'}}}
+            });
+        }
+        var sw=Stats.shapiroWilk(values);
+        var rows=[{Variable:varName,N:result.n,Mean:fmt(result.mean),'S.D.':fmt(result.sd),
+            'Shapiro-Wilk W':sw?fmt(sw.W):'N/A','S-W p':sw?Stats.formatPValue(sw.p):'N/A',
+            'Normal?':sw?(sw.p>0.05?'✅ Yes':'⚠️ No'):'N/A'}];
+        state.results['qq']={data:rows,title:'Q-Q Plot Analysis'};
+        displayResults('qq');
     }
 
     // =========================================================================

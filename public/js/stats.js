@@ -2265,4 +2265,399 @@
         return ssBetween / (ssBetween + ssError);
     };
 
+    // =========================================================================
+    // Power Analysis (Sample Size Calculator)
+    // =========================================================================
+
+    Stats.powerAnalysis = function(testType, params) {
+        // testType: 'ttest', 'anova', 'correlation', 'chi-square'
+        // params: { effectSize, alpha, power, groups }
+        var alpha = params.alpha || 0.05;
+        var power = params.power || 0.80;
+        var es = params.effectSize || 0.5;
+        var groups = params.groups || 2;
+        var zAlpha = jStat.normal.inv(1 - alpha/2, 0, 1);
+        var zBeta = jStat.normal.inv(power, 0, 1);
+        var n, totalN;
+
+        switch(testType) {
+            case 'ttest':
+                // Cohen's formula: n per group = ((zα + zβ)² × 2) / d²
+                n = Math.ceil(2 * Math.pow(zAlpha + zBeta, 2) / (es * es));
+                totalN = n * 2;
+                return {nPerGroup: n, totalN: totalN, effectSize: es, alpha: alpha, power: power, test: 'Independent t-test'};
+            case 'paired':
+                n = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (es * es));
+                return {n: n, totalN: n, effectSize: es, alpha: alpha, power: power, test: 'Paired t-test'};
+            case 'anova':
+                // n per group ≈ ((zα + zβ)² × (k)) / (f² × k)
+                var f = es; // Cohen's f
+                n = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (f * f)) + 1;
+                totalN = n * groups;
+                return {nPerGroup: n, totalN: totalN, groups: groups, effectSize: es, alpha: alpha, power: power, test: 'One-way ANOVA'};
+            case 'correlation':
+                // n = ((zα + zβ) / arctanh(r))² + 3
+                var zr = 0.5 * Math.log((1+es)/(1-es+1e-10));
+                n = Math.ceil(Math.pow((zAlpha + zBeta) / zr, 2) + 3);
+                return {n: n, totalN: n, effectSize: es, alpha: alpha, power: power, test: 'Correlation'};
+            case 'chi-square':
+                // n = ((zα + zβ)² × (w² + 1)) / w²  -- simplified
+                var w = es; // Cohen's w
+                n = Math.ceil(Math.pow(zAlpha + zBeta, 2) / (w * w));
+                return {n: n, totalN: n, effectSize: es, alpha: alpha, power: power, test: 'Chi-Square'};
+            default:
+                return null;
+        }
+    };
+
+    // =========================================================================
+    // Q-Q Plot Data Generator
+    // =========================================================================
+
+    Stats.qqPlotData = function(values) {
+        if (!values || values.length < 3) return null;
+        var sorted = values.slice().sort(function(a,b){return a-b;});
+        var n = sorted.length;
+        var m = sorted.reduce(function(a,b){return a+b;},0)/n;
+        var s = Math.sqrt(sorted.reduce(function(a,b){return a+(b-m)*(b-m);},0)/(n-1));
+        var points = [];
+        for (var i = 0; i < n; i++) {
+            var p = (i + 0.5) / n;
+            var theoretical = jStat.normal.inv(p, 0, 1);
+            var standardized = s > 0 ? (sorted[i] - m) / s : 0;
+            points.push({theoretical: theoretical, observed: standardized, raw: sorted[i]});
+        }
+        return {points: points, mean: m, sd: s, n: n};
+    };
+
+    // =========================================================================
+    // Median Test
+    // =========================================================================
+
+    Stats.medianTest = function(groups, groupNames) {
+        if (!groups || groups.length < 2) return null;
+        var allData = [];
+        groups.forEach(function(g){allData = allData.concat(g);});
+        var sorted = allData.slice().sort(function(a,b){return a-b;});
+        var grandMedian = sorted.length % 2 === 0 ?
+            (sorted[sorted.length/2-1] + sorted[sorted.length/2])/2 : sorted[Math.floor(sorted.length/2)];
+
+        // Count above/below median per group
+        var above = [], below = [];
+        groups.forEach(function(g) {
+            var a = 0, b = 0;
+            g.forEach(function(v) { if (v > grandMedian) a++; else b++; });
+            above.push(a); below.push(b);
+        });
+
+        // Chi-square test on the 2×k table
+        var k = groups.length;
+        var N = allData.length;
+        var totalAbove = above.reduce(function(a,b){return a+b;},0);
+        var totalBelow = below.reduce(function(a,b){return a+b;},0);
+        var chi2 = 0;
+        for (var i = 0; i < k; i++) {
+            var ni = groups[i].length;
+            var eAbove = ni * totalAbove / N;
+            var eBelow = ni * totalBelow / N;
+            if (eAbove > 0) chi2 += Math.pow(above[i] - eAbove, 2) / eAbove;
+            if (eBelow > 0) chi2 += Math.pow(below[i] - eBelow, 2) / eBelow;
+        }
+        var df = k - 1;
+        var p = 1 - jStat.chisquare.cdf(chi2, df);
+
+        var groupStats = [];
+        for (var i = 0; i < k; i++) {
+            groupStats.push({group: groupNames ? groupNames[i] : 'Group '+(i+1), n: groups[i].length, above: above[i], below: below[i]});
+        }
+
+        return {grandMedian: grandMedian, chi2: chi2, df: df, p: p, groupStats: groupStats, significant: p < 0.05};
+    };
+
+    // =========================================================================
+    // Runs Test (Wald-Wolfowitz)
+    // =========================================================================
+
+    Stats.runsTest = function(values) {
+        if (!values || values.length < 10) return null;
+        var n = values.length;
+        var m = values.reduce(function(a,b){return a+b;},0)/n;
+        // Convert to above/below median
+        var signs = values.map(function(v){return v >= m ? 1 : 0;});
+        var n1 = signs.filter(function(s){return s===1;}).length;
+        var n2 = signs.filter(function(s){return s===0;}).length;
+        // Count runs
+        var runs = 1;
+        for (var i = 1; i < n; i++) {
+            if (signs[i] !== signs[i-1]) runs++;
+        }
+        // Expected runs and variance
+        var expectedRuns = (2*n1*n2)/(n1+n2) + 1;
+        var varRuns = (2*n1*n2*(2*n1*n2-n1-n2))/((n1+n2)*(n1+n2)*(n1+n2-1));
+        var z = varRuns > 0 ? (runs - expectedRuns) / Math.sqrt(varRuns) : 0;
+        var p = 2 * (1 - jStat.normal.cdf(Math.abs(z), 0, 1));
+
+        return {runs: runs, expectedRuns: expectedRuns, n: n, n1: n1, n2: n2, z: z, p: p, random: p >= 0.05};
+    };
+
+    // =========================================================================
+    // Kolmogorov-Smirnov 2-Sample Test
+    // =========================================================================
+
+    Stats.ks2Sample = function(sample1, sample2) {
+        if (!sample1 || !sample2 || sample1.length < 2 || sample2.length < 2) return null;
+        var s1 = sample1.slice().sort(function(a,b){return a-b;});
+        var s2 = sample2.slice().sort(function(a,b){return a-b;});
+        var n1 = s1.length, n2 = s2.length;
+        // Merge and compute ECDFs
+        var all = s1.concat(s2).sort(function(a,b){return a-b;});
+        var maxD = 0;
+        all.forEach(function(v) {
+            var f1 = s1.filter(function(x){return x<=v;}).length / n1;
+            var f2 = s2.filter(function(x){return x<=v;}).length / n2;
+            var d = Math.abs(f1 - f2);
+            if (d > maxD) maxD = d;
+        });
+        // Approximate p-value
+        var en = Math.sqrt(n1 * n2 / (n1 + n2));
+        var lambda = (en + 0.12 + 0.11/en) * maxD;
+        // Kolmogorov distribution approximation
+        var p = 2 * Math.exp(-2 * lambda * lambda);
+        p = Math.min(Math.max(p, 0), 1);
+
+        return {D: maxD, n1: n1, n2: n2, p: p, significant: p < 0.05};
+    };
+
+    // =========================================================================
+    // Welch ANOVA
+    // =========================================================================
+
+    Stats.welchAnova = function(groups, groupNames) {
+        if (!groups || groups.length < 2) return null;
+        var k = groups.length;
+        var means = [], vars = [], ns = [], weights = [];
+        groups.forEach(function(g) {
+            var m = g.reduce(function(a,b){return a+b;},0)/g.length;
+            var v = g.reduce(function(a,b){return a+(b-m)*(b-m);},0)/(g.length-1);
+            means.push(m); vars.push(v); ns.push(g.length);
+            weights.push(g.length / v);
+        });
+        var totalWeight = weights.reduce(function(a,b){return a+b;},0);
+        var weightedMean = 0;
+        for (var i=0;i<k;i++) weightedMean += weights[i]*means[i];
+        weightedMean /= totalWeight;
+
+        var numerator = 0;
+        for (var i=0;i<k;i++) numerator += weights[i]*Math.pow(means[i]-weightedMean,2);
+        numerator /= (k-1);
+
+        var denom = 1 + 2*(k-2)/(k*k-1) * (function(){
+            var s=0; for(var i=0;i<k;i++) s += Math.pow(1-weights[i]/totalWeight,2)/(ns[i]-1);
+            return s;
+        })();
+
+        var F = numerator / denom;
+        var df1 = k - 1;
+        var df2Sum = 0;
+        for (var i=0;i<k;i++) df2Sum += Math.pow(1-weights[i]/totalWeight,2)/(ns[i]-1);
+        var df2 = (k*k-1)/(3*df2Sum);
+        var p = 1 - jStat.centralF.cdf(F, df1, df2);
+
+        return {F:F, df1:df1, df2:df2, p:p, significant:p<0.05,
+                descriptives: groups.map(function(g,i){return {group:groupNames?groupNames[i]:'G'+(i+1),n:ns[i],mean:means[i],variance:vars[i]};})};
+    };
+
+    // =========================================================================
+    // Dunnett's Test (compare to control)
+    // =========================================================================
+
+    Stats.dunnettTest = function(groups, groupNames, controlIndex) {
+        controlIndex = controlIndex || 0;
+        if (!groups || groups.length < 2) return null;
+        var k = groups.length;
+        var allData = []; groups.forEach(function(g){allData=allData.concat(g);});
+        var N = allData.length, dfW = N - k;
+        var msW = 0;
+        groups.forEach(function(g){var m=g.reduce(function(a,b){return a+b;},0)/g.length;g.forEach(function(v){msW+=(v-m)*(v-m);});});
+        msW /= dfW;
+
+        var control = groups[controlIndex];
+        var mc = control.reduce(function(a,b){return a+b;},0)/control.length;
+        var nc = control.length;
+
+        var pairs = [];
+        for (var i = 0; i < k; i++) {
+            if (i === controlIndex) continue;
+            var mi = groups[i].reduce(function(a,b){return a+b;},0)/groups[i].length;
+            var ni = groups[i].length;
+            var se = Math.sqrt(msW * (1/ni + 1/nc));
+            var t = (mi - mc) / se;
+            var p = 2 * (1 - jStat.studentt.cdf(Math.abs(t), dfW));
+            // Dunnett's adjustment (approximate using Bonferroni)
+            var pAdj = Math.min(p * (k-1), 1);
+            pairs.push({
+                group: groupNames ? groupNames[i] : 'Group '+(i+1),
+                control: groupNames ? groupNames[controlIndex] : 'Control',
+                meanGroup: mi, meanControl: mc, meanDiff: mi-mc,
+                se: se, t: t, df: dfW, p: p, pAdjusted: pAdj, significant: pAdj < 0.05
+            });
+        }
+        return pairs;
+    };
+
+    // =========================================================================
+    // K-Means Cluster Analysis
+    // =========================================================================
+
+    Stats.kMeans = function(dataArrays, varNames, k) {
+        k = k || 3;
+        if (!dataArrays || dataArrays.length < 1) return null;
+        var p = dataArrays.length; // dimensions
+        var n = dataArrays[0].length;
+        if (n < k) return null;
+
+        // Build data matrix: rows = observations
+        var data = [];
+        for (var i = 0; i < n; i++) {
+            var row = [];
+            for (var j = 0; j < p; j++) row.push(dataArrays[j][i]);
+            data.push(row);
+        }
+
+        // Standardize
+        var means = [], sds = [];
+        for (var j=0;j<p;j++){
+            var col = dataArrays[j];
+            var m = col.reduce(function(a,b){return a+b;},0)/n;
+            var s = Math.sqrt(col.reduce(function(a,b){return a+(b-m)*(b-m);},0)/(n-1));
+            means.push(m); sds.push(s||1);
+        }
+        var stdData = data.map(function(row){return row.map(function(v,j){return (v-means[j])/sds[j];});});
+
+        // Initialize centroids (first k points)
+        var centroids = stdData.slice(0,k).map(function(r){return r.slice();});
+        var assignments = new Array(n).fill(0);
+        var iter;
+
+        // Iterate
+        for (iter = 0; iter < 50; iter++) {
+            var changed = false;
+            // Assign
+            for (var i=0;i<n;i++){
+                var minDist = Infinity, minC = 0;
+                for (var c=0;c<k;c++){
+                    var dist = 0;
+                    for (var j=0;j<p;j++) dist += Math.pow(stdData[i][j]-centroids[c][j],2);
+                    if (dist < minDist) { minDist=dist; minC=c; }
+                }
+                if (assignments[i] !== minC) { assignments[i]=minC; changed=true; }
+            }
+            if (!changed) break;
+            // Update centroids
+            for (var c=0;c<k;c++){
+                var count = 0;
+                var sums = new Array(p).fill(0);
+                for (var i=0;i<n;i++){
+                    if (assignments[i]===c){count++;for(var j=0;j<p;j++)sums[j]+=stdData[i][j];}
+                }
+                if (count>0) centroids[c] = sums.map(function(s){return s/count;});
+            }
+        }
+
+        // Cluster summaries
+        var clusters = [];
+        for (var c=0;c<k;c++){
+            var members = [];
+            for (var i=0;i<n;i++) if(assignments[i]===c) members.push(i);
+            var clusterMeans = {};
+            for (var j=0;j<p;j++){
+                var vals = members.map(function(idx){return data[idx][j];});
+                var m = vals.length>0 ? vals.reduce(function(a,b){return a+b;},0)/vals.length : 0;
+                clusterMeans[varNames?varNames[j]:'V'+(j+1)] = m;
+            }
+            clusters.push({cluster:c+1, n:members.length, means:clusterMeans});
+        }
+
+        return {k:k, n:n, clusters:clusters, assignments:assignments, iterations:iter+1, variables:varNames||[]};
+    };
+
+    // =========================================================================
+    // Discriminant Analysis (Fisher's LDA for 2 groups)
+    // =========================================================================
+
+    Stats.discriminantAnalysis = function(dataArrays, varNames, groupVar) {
+        // Simplified: 2-group Fisher's Linear Discriminant
+        if (!dataArrays || dataArrays.length < 1 || !groupVar) return null;
+        var n = groupVar.length;
+        var groups = {};
+        groupVar.forEach(function(g,i){if(!groups[g])groups[g]=[];groups[g].push(i);});
+        var gNames = Object.keys(groups);
+        if (gNames.length !== 2) return {error:'Discriminant Analysis requires exactly 2 groups'};
+
+        var p = dataArrays.length;
+        var g1Indices = groups[gNames[0]], g2Indices = groups[gNames[1]];
+        var n1=g1Indices.length, n2=g2Indices.length;
+
+        // Means per group
+        var m1=[], m2=[];
+        for(var j=0;j<p;j++){
+            var s1=0,s2=0;
+            g1Indices.forEach(function(i){s1+=dataArrays[j][i];}); m1.push(s1/n1);
+            g2Indices.forEach(function(i){s2+=dataArrays[j][i];}); m2.push(s2/n2);
+        }
+
+        // Wilks' Lambda approximation
+        var ssB=0, ssT=0;
+        for(var j=0;j<p;j++){
+            var gm = (m1[j]*n1+m2[j]*n2)/n;
+            ssB += n1*(m1[j]-gm)*(m1[j]-gm) + n2*(m2[j]-gm)*(m2[j]-gm);
+            dataArrays[j].forEach(function(v){ssT+=(v-gm)*(v-gm);});
+        }
+        var wilksLambda = ssT>0 ? 1 - ssB/ssT : 1;
+        var F = ssB>0&&(n-2)>0 ? ((1-wilksLambda)/wilksLambda) * ((n-2)/1) : 0;
+        var pVal = F>0 ? 1-jStat.centralF.cdf(F,p,n-p-1) : 1;
+
+        // Classification accuracy
+        var correct = 0;
+        for(var i=0;i<n;i++){
+            var d1=0,d2=0;
+            for(var j=0;j<p;j++){d1+=Math.pow(dataArrays[j][i]-m1[j],2);d2+=Math.pow(dataArrays[j][i]-m2[j],2);}
+            var predicted = d1<d2?gNames[0]:gNames[1];
+            if(predicted===groupVar[i]) correct++;
+        }
+
+        return {
+            groups:gNames, n:n, variables:varNames||[],
+            groupMeans:gNames.map(function(g,i){var obj={Group:g,N:i===0?n1:n2};for(var j=0;j<p;j++)obj[varNames?varNames[j]:'V'+(j+1)]=i===0?m1[j]:m2[j];return obj;}),
+            wilksLambda:wilksLambda, F:F, df1:p, df2:n-p-1, p:pVal,
+            accuracy:correct/n*100, correct:correct
+        };
+    };
+
+    // =========================================================================
+    // Missing Value Analysis
+    // =========================================================================
+
+    Stats.missingValueAnalysis = function(data, columns) {
+        if (!data || !columns) return null;
+        var n = data.length;
+        var results = [];
+        columns.forEach(function(col) {
+            var missing = 0, valid = 0;
+            data.forEach(function(row) {
+                var v = row[col];
+                if (v === null || v === undefined || v === '' || (typeof v === 'number' && isNaN(v))) missing++;
+                else valid++;
+            });
+            results.push({
+                variable: col, n: n, valid: valid, missing: missing,
+                missingPct: n > 0 ? (missing/n*100) : 0,
+                status: missing === 0 ? 'Complete' : missing/n < 0.05 ? 'Low' : missing/n < 0.2 ? 'Moderate' : 'High'
+            });
+        });
+        var totalMissing = results.reduce(function(a,r){return a+r.missing;},0);
+        var totalCells = n * columns.length;
+        return {variables: results, totalCells: totalCells, totalMissing: totalMissing, overallPct: totalCells>0?totalMissing/totalCells*100:0};
+    };
+
 })();

@@ -173,6 +173,16 @@
                     <button class="menu-item" onclick="navigateTo('mcnemar')">McNemar Test</button>
                     <button class="menu-item" onclick="navigateTo('fisher-exact')">Fisher's Exact Test</button>
                     <button class="menu-item" onclick="navigateTo('cochran-q')">Cochran's Q Test</button>
+                    <button class="menu-item" onclick="navigateTo('power-analysis')">Power Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('welch-anova')">Welch ANOVA</button>
+                    <button class="menu-item" onclick="navigateTo('dunnett')">Dunnett's Test</button>
+                    <button class="menu-item" onclick="navigateTo('median-test')">Median Test</button>
+                    <button class="menu-item" onclick="navigateTo('runs-test')">Runs Test</button>
+                    <button class="menu-item" onclick="navigateTo('ks2')">K-S 2-Sample</button>
+                    <button class="menu-item" onclick="navigateTo('cluster')">Cluster Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('discriminant')">Discriminant Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('missing')">Missing Value Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('qqplot')">Q-Q Plot</button>
                 </div>
             </div>
 
@@ -2390,6 +2400,167 @@
             <button class="btn btn-ai" onclick="aiAnalyze('cq')">🤖 AI วิเคราะห์ผล</button><div id="cq-ai-result" class="ai-result-box" style="display:none"></div></div>
         <div class="export-area"><button class="btn btn-export" onclick="exportExcel('cq')">📥 Excel</button></div>
     </div>
+</div>
+
+<!-- POWER ANALYSIS -->
+<div class="page" id="page-power-analysis">
+    <h2 class="page-title">🎯 Power Analysis (Sample Size)</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> คำนวณขนาดตัวอย่างที่เหมาะสม</p><p><strong>ใช้ก่อน:</strong> เก็บข้อมูล เพื่อวางแผนจำนวนกลุ่มตัวอย่าง</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>Test Type</label>
+            <select id="pwr-test" class="form-select">
+                <option value="ttest">Independent t-test</option><option value="paired">Paired t-test</option>
+                <option value="anova">One-way ANOVA</option><option value="correlation">Correlation</option>
+                <option value="chi-square">Chi-Square</option>
+            </select></div>
+        <div class="form-row">
+            <div class="form-group"><label>Effect Size</label><input type="number" id="pwr-es" class="form-input" value="0.5" step="0.1" min="0.01"></div>
+            <div class="form-group"><label>Alpha</label><input type="number" id="pwr-alpha" class="form-input" value="0.05" step="0.01"></div>
+            <div class="form-group"><label>Power</label><input type="number" id="pwr-power" class="form-input" value="0.80" step="0.05"></div>
+            <div class="form-group"><label>Groups (ANOVA)</label><input type="number" id="pwr-groups" class="form-input" value="3" min="2"></div>
+        </div>
+        <div class="detail-box" style="margin-bottom:12px">
+            <strong>Effect Size ตามเกณฑ์ Cohen:</strong><br>
+            t-test: Small=0.2, Medium=0.5, Large=0.8<br>
+            ANOVA (f): Small=0.1, Medium=0.25, Large=0.4<br>
+            Correlation: Small=0.1, Medium=0.3, Large=0.5<br>
+            Chi-Square (w): Small=0.1, Medium=0.3, Large=0.5
+        </div>
+        <button class="btn btn-primary" onclick="runAnalysis('power-analysis')">Calculate Sample Size</button>
+    </div>
+    <div id="pwr-results" class="results-area"><div id="pwr-extras"></div><div id="pwr-table"></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('pwr')">📥 Excel</button></div></div>
+</div>
+
+<!-- WELCH ANOVA -->
+<div class="page" id="page-welch-anova">
+    <h2 class="page-title">📊 Welch ANOVA</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> เปรียบเทียบ 3+ กลุ่ม เมื่อความแปรปรวนไม่เท่ากัน</p><p><strong>ใช้แทน:</strong> One-way ANOVA เมื่อ Levene's test มีนัยสำคัญ</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>DV</label><select id="wa-dv" class="var-select" style="display:none"></select><div id="wa-dv-picker"></div></div>
+        <div class="form-group"><label>Factor</label><select id="wa-iv" class="var-select" style="display:none"></select><div id="wa-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('welch-anova')">Run Welch ANOVA</button>
+    </div>
+    <div id="wa-results" class="results-area"><div id="wa-extras"></div><div id="wa-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="wa-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('wa')">🤖 AI วิเคราะห์ผล</button><div id="wa-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('wa')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('wa')">📥 Word</button></div></div>
+</div>
+
+<!-- DUNNETT'S TEST -->
+<div class="page" id="page-dunnett">
+    <h2 class="page-title">📐 Dunnett's Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> เปรียบเทียบทุกกลุ่มกับกลุ่มควบคุม (Control)</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>DV</label><select id="dnt-dv" class="var-select" style="display:none"></select><div id="dnt-dv-picker"></div></div>
+        <div class="form-group"><label>Factor</label><select id="dnt-iv" class="var-select" style="display:none"></select><div id="dnt-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('dunnett')">Run Dunnett's Test</button>
+    </div>
+    <div id="dnt-results" class="results-area"><div id="dnt-extras"></div><div id="dnt-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="dnt-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('dnt')">🤖 AI วิเคราะห์ผล</button><div id="dnt-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('dnt')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('dnt')">📥 Word</button></div></div>
+</div>
+
+<!-- MEDIAN TEST -->
+<div class="page" id="page-median-test">
+    <h2 class="page-title">📐 Median Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> เปรียบเทียบ Median ระหว่างกลุ่ม</p><p><strong>ใช้แทน:</strong> Kruskal-Wallis เมื่อต้องการทดสอบ Median โดยเฉพาะ</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>DV</label><select id="mdt-dv" class="var-select" style="display:none"></select><div id="mdt-dv-picker"></div></div>
+        <div class="form-group"><label>Factor</label><select id="mdt-iv" class="var-select" style="display:none"></select><div id="mdt-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('median-test')">Run Median Test</button>
+    </div>
+    <div id="mdt-results" class="results-area"><div id="mdt-extras"></div><div id="mdt-table"></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('mdt')">📥 Excel</button></div></div>
+</div>
+
+<!-- RUNS TEST -->
+<div class="page" id="page-runs-test">
+    <h2 class="page-title">📐 Runs Test</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> ทดสอบว่าข้อมูลเป็นแบบสุ่มหรือไม่ (Randomness)</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables</label><select id="run-vars" class="var-select" multiple style="display:none"></select><div id="run-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('runs-test')">Run Test</button>
+    </div>
+    <div id="run-results" class="results-area"><div id="run-extras"></div><div id="run-table"></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('run')">📥 Excel</button></div></div>
+</div>
+
+<!-- KS 2-SAMPLE -->
+<div class="page" id="page-ks2">
+    <h2 class="page-title">📐 Kolmogorov-Smirnov 2-Sample</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> ทดสอบว่า 2 กลุ่มมาจากการแจกแจงเดียวกันหรือไม่</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>DV</label><select id="ks2-dv" class="var-select" style="display:none"></select><div id="ks2-dv-picker"></div></div>
+        <div class="form-group"><label>Grouping Variable</label><select id="ks2-iv" class="var-select" style="display:none"></select><div id="ks2-iv-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('ks2')">Run K-S Test</button>
+    </div>
+    <div id="ks2-results" class="results-area"><div id="ks2-extras"></div><div id="ks2-table"></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('ks2')">📥 Excel</button></div></div>
+</div>
+
+<!-- CLUSTER ANALYSIS -->
+<div class="page" id="page-cluster">
+    <h2 class="page-title">🔬 Cluster Analysis (K-Means)</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> จัดกลุ่มข้อมูลที่คล้ายกันเข้าด้วยกัน</p><p><strong>ตัวอย่าง:</strong> แบ่งลูกค้าเป็น segment ตามพฤติกรรม</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Variables (2+)</label><select id="cls-vars" class="var-select" multiple style="display:none"></select><div id="cls-picker"></div></div>
+        <div class="form-group"><label>Number of Clusters (k)</label><input type="number" id="cls-k" class="form-input" value="3" min="2" max="10"></div>
+        <button class="btn btn-primary" onclick="runAnalysis('cluster')">Run K-Means</button>
+    </div>
+    <div id="cls-results" class="results-area"><div id="cls-extras"></div><div id="cls-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="cls-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('cls')">🤖 AI วิเคราะห์ผล</button><div id="cls-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('cls')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('cls')">📥 Word</button></div></div>
+</div>
+
+<!-- DISCRIMINANT ANALYSIS -->
+<div class="page" id="page-discriminant">
+    <h2 class="page-title">🔬 Discriminant Analysis</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> จำแนกกลุ่มจากตัวแปรอิสระ (2 กลุ่ม)</p><p><strong>ตัวอย่าง:</strong> จำแนกนักเรียนสอบผ่าน/ไม่ผ่าน จากคะแนนย่อย</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>Grouping Variable (2 groups)</label><select id="da-group" class="var-select" style="display:none"></select><div id="da-group-picker"></div></div>
+        <div class="form-group"><label>Predictor Variables</label><select id="da-vars" class="var-select" multiple style="display:none"></select><div id="da-vars-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('discriminant')">Run Analysis</button>
+    </div>
+    <div id="da-results" class="results-area"><div id="da-extras"></div><div id="da-table"></div>
+        <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="da-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
+            <button class="btn btn-ai" onclick="aiAnalyze('da')">🤖 AI วิเคราะห์ผล</button><div id="da-ai-result" class="ai-result-box" style="display:none"></div></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('da')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('da')">📥 Word</button></div></div>
+</div>
+
+<!-- MISSING VALUE ANALYSIS -->
+<div class="page" id="page-missing">
+    <h2 class="page-title">📋 Missing Value Analysis</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> ตรวจสอบข้อมูลที่หายไป (Missing Data) ก่อนวิเคราะห์</p></div></details>
+    <div class="card">
+        <button class="btn btn-primary" onclick="runAnalysis('missing')">Analyze Missing Values (All Variables)</button>
+    </div>
+    <div id="miss-results" class="results-area"><div id="miss-extras"></div><div id="miss-table"></div>
+        <div class="export-area"><button class="btn btn-export" onclick="exportExcel('miss')">📥 Excel</button></div></div>
+</div>
+
+<!-- Q-Q PLOT -->
+<div class="page" id="page-qqplot">
+    <h2 class="page-title">📈 Q-Q Plot</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content"><p><strong>วัตถุประสงค์:</strong> ตรวจสอบการแจกแจงปกติแบบกราฟ</p><p><strong>อ่านผล:</strong> ถ้าจุดอยู่บนเส้นตรง = ข้อมูลปกติ</p></div></details>
+    <div class="card">
+        <div class="form-group"><label>Select Variable</label><select id="qq-var" class="var-select" style="display:none"></select><div id="qq-var-picker"></div></div>
+        <button class="btn btn-primary" onclick="runAnalysis('qqplot')">Create Q-Q Plot</button>
+    </div>
+    <div id="qq-chart" style="max-width:600px;margin:20px auto"><canvas id="qq-canvas"></canvas></div>
+    <div id="qq-results" class="results-area"><div id="qq-extras"></div><div id="qq-table"></div></div>
 </div>
 
         <!-- ================================================== -->
