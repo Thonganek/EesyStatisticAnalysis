@@ -1,0 +1,10 @@
+node_modules/
+_old_python/
+__pycache__/
+.streamlit/
+.claude/
+.sixth/
+.DS_Store
+*.pyc
+.env
+package-lock.json
