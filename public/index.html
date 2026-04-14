@@ -592,10 +592,29 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Select Variables</label>
+                    <label>Select Variables (ข้อคำถาม)</label>
                     <select id="lk-vars" class="var-select" multiple style="display:none"></select>
                     <div id="lk-picker"></div>
                 </div>
+
+                <!-- Likert Grouping -->
+                <details class="stat-guide" style="margin:12px 0">
+                    <summary>📂 จัดกลุ่มตัวแปร (Group by Dimension / ด้าน)</summary>
+                    <div class="stat-guide-content">
+                        <p style="color:#64748b;font-size:0.82rem;margin:0 0 8px">จัดกลุ่มข้อคำถามตามตัวแปร/ด้าน เพื่อแสดงค่าเฉลี่ยรายด้าน เช่น ด้านโครงสร้างองค์กร = ข้อ 1-3, ด้านความรับผิดชอบ = ข้อ 4-6</p>
+                        <div id="lk-groups-container">
+                            <div class="lk-group-row" data-group="0">
+                                <input type="text" class="form-input lk-group-name" placeholder="ชื่อกลุ่ม/ด้าน เช่น ด้านโครงสร้างองค์กร" style="flex:1;margin-bottom:4px">
+                                <div class="lk-group-vars" style="font-size:0.8rem;color:#64748b;margin-bottom:6px">เลือกตัวแปรก่อน แล้วกดจัดกลุ่ม</div>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:8px">
+                            <button class="btn btn-export" type="button" onclick="addLikertGroup()" style="font-size:0.82rem">+ เพิ่มกลุ่ม</button>
+                            <button class="btn btn-primary" type="button" onclick="assignLikertGroups()" style="font-size:0.82rem">📂 จัดกลุ่มอัตโนมัติ</button>
+                            <button class="btn btn-export" type="button" onclick="clearLikertGroups()" style="font-size:0.82rem;color:#dc2626">ล้างกลุ่ม</button>
+                        </div>
+                    </div>
+                </details>
 
                 <details class="stat-guide" style="margin:12px 0">
                     <summary>⚙️ ตั้งค่าเกณฑ์การแปลผล (Interpretation Criteria)</summary>

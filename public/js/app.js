@@ -1054,7 +1054,6 @@
         // Build the demographics table: Variable | Category | n | %
         var rows = [];
         var rowNum = 1;
-        var hasNumericStats = false;
 
         vars.forEach(function(varName) {
             var isNumeric = numericVars.indexOf(varName) !== -1;
@@ -1098,14 +1097,11 @@
                     }
                     rowNum++;
                 } else {
-                    // Default: show Mean, S.D., Min, Max as separate columns in same row
-                    hasNumericStats = true;
+                    // Show Mean, S.D., Min, Max in รายการ column (same row)
                     rows.push({
                         'ลำดับ': rowNum++, 'คุณลักษณะ': varName,
-                        'รายการ': '(ตัวแปรเชิงปริมาณ)',
+                        'รายการ': 'Mean = ' + fmt(desc.mean, 2) + ',  S.D. = ' + fmt(desc.sd, 2) + ',  Min = ' + fmt(desc.min, 2) + ',  Max = ' + fmt(desc.max, 2),
                         'จำนวน (n)': desc.n, 'ร้อยละ': '-',
-                        'Mean': fmt(desc.mean, 2), 'S.D.': fmt(desc.sd, 2),
-                        'Min': fmt(desc.min, 2), 'Max': fmt(desc.max, 2),
                     });
                 }
             } else {
@@ -1151,11 +1147,8 @@
             'ร้อยละ': '100.0',
         });
 
-        // Explicit column order — add Mean/S.D./Min/Max if numeric vars exist
+        // Explicit column order
         var columns = ['ลำดับ', 'คุณลักษณะ', 'รายการ', 'จำนวน (n)', 'ร้อยละ'];
-        if (hasNumericStats) {
-            columns = ['ลำดับ', 'คุณลักษณะ', 'รายการ', 'จำนวน (n)', 'ร้อยละ', 'Mean', 'S.D.', 'Min', 'Max'];
-        }
 
         state.results['demo'] = {
             data: rows,
@@ -1339,76 +1332,209 @@
         container.innerHTML = html;
     }
 
+    // Likert group management
+    var likertGroups = []; // [{name:'ด้านที่ 1', vars:['q1','q2','q3']}, ...]
+
+    function addLikertGroup() {
+        var container = document.getElementById('lk-groups-container');
+        if (!container) return;
+        var idx = container.querySelectorAll('.lk-group-row').length;
+        var div = document.createElement('div');
+        div.className = 'lk-group-row';
+        div.setAttribute('data-group', idx);
+        div.innerHTML = '<input type="text" class="form-input lk-group-name" placeholder="ชื่อกลุ่ม/ด้าน" style="flex:1;margin-bottom:4px">' +
+            '<div class="lk-group-vars" style="font-size:0.8rem;color:#64748b;margin-bottom:6px">เลือกตัวแปรก่อน แล้วกดจัดกลุ่ม</div>';
+        container.appendChild(div);
+    }
+
+    function clearLikertGroups() {
+        likertGroups = [];
+        var container = document.getElementById('lk-groups-container');
+        if (container) {
+            container.innerHTML = '<div class="lk-group-row" data-group="0"><input type="text" class="form-input lk-group-name" placeholder="ชื่อกลุ่ม/ด้าน เช่น ด้านโครงสร้างองค์กร" style="flex:1;margin-bottom:4px"><div class="lk-group-vars" style="font-size:0.8rem;color:#64748b;margin-bottom:6px">เลือกตัวแปรก่อน แล้วกดจัดกลุ่ม</div></div>';
+        }
+    }
+
+    function assignLikertGroups() {
+        var vars = getCheckedVars('lk-picker');
+        if (vars.length === 0) { alert('กรุณาเลือกตัวแปรก่อน'); return; }
+
+        var groupRows = document.querySelectorAll('.lk-group-row');
+        var numGroups = groupRows.length;
+        if (numGroups === 0) { addLikertGroup(); groupRows = document.querySelectorAll('.lk-group-row'); numGroups = 1; }
+
+        // Evenly distribute vars to groups
+        var perGroup = Math.ceil(vars.length / numGroups);
+        likertGroups = [];
+        groupRows.forEach(function(row, gi) {
+            var nameInput = row.querySelector('.lk-group-name');
+            var varsDiv = row.querySelector('.lk-group-vars');
+            var start = gi * perGroup;
+            var end = Math.min(start + perGroup, vars.length);
+            var groupVars = vars.slice(start, end);
+            var groupName = nameInput ? nameInput.value.trim() : '';
+            if (!groupName) groupName = 'ด้านที่ ' + (gi + 1);
+            if (nameInput && !nameInput.value.trim()) nameInput.value = groupName;
+            likertGroups.push({ name: groupName, vars: groupVars });
+            if (varsDiv) varsDiv.innerHTML = groupVars.length > 0 ? groupVars.map(function(v){ return '<span style="background:#dbeafe;padding:2px 6px;border-radius:4px;margin:2px;display:inline-block;font-size:0.78rem">' + v + '</span>'; }).join('') : '(ไม่มีตัวแปร)';
+        });
+    }
+
+    function _readLikertGroups() {
+        var groupRows = document.querySelectorAll('.lk-group-row');
+        var groups = [];
+        groupRows.forEach(function(row) {
+            var nameInput = row.querySelector('.lk-group-name');
+            var name = nameInput ? nameInput.value.trim() : '';
+            if (name) groups.push({ name: name });
+        });
+        // Match with stored groups
+        if (likertGroups.length > 0 && likertGroups[0].vars && likertGroups[0].vars.length > 0) {
+            // Update names from UI
+            for (var i = 0; i < Math.min(groups.length, likertGroups.length); i++) {
+                if (groups[i].name) likertGroups[i].name = groups[i].name;
+            }
+            return likertGroups;
+        }
+        return [];
+    }
+
     function runLikert() {
         var vars = getCheckedVars('lk-picker');
         if (vars.length === 0) vars = getSelected('lk-vars');
         if (vars.length === 0) { alert('กรุณาเลือกตัวแปรอย่างน้อย 1 ตัว'); return; }
         var scale = parseInt(getSelectValue('lk-scale')) || 5;
-
-        // Read custom criteria from UI
         var criteria = getLikertCriteria();
+
+        // Read groups
+        var groups = _readLikertGroups();
+        var hasGroups = groups.length > 0 && groups[0].vars && groups[0].vars.length > 0;
 
         var dataArrays = vars.map(function (v) { return getColumnData(v, true); });
         var result = Stats.likertAnalysis(dataArrays, vars, scale, criteria);
         if (!result) { alert('ไม่สามารถวิเคราะห์ได้ ตรวจสอบข้อมูล'); return; }
 
-        // Main table: No. → Variable → 5 → 4 → 3 → 2 → 1 → Mean → S.D. → Interpretation
-        var rows = result.items.map(function (item) {
-            var row = { 'No.': item.no, 'Variable': item.variable };
-            for (var lv = scale; lv >= 1; lv--) {
-                var f = item.frequencies[lv];
-                row[String(lv)] = f ? f.count + ' (' + fmt(f.pct, 1) + '%)' : '0';
+        // Build criteria
+        var usedCriteria = criteria || [];
+        if (usedCriteria.length === 0) {
+            if (scale === 5) usedCriteria = [{lo:4.21,hi:5.00,label:'มากที่สุด'},{lo:3.41,hi:4.20,label:'มาก'},{lo:2.61,hi:3.40,label:'ปานกลาง'},{lo:1.81,hi:2.60,label:'น้อย'},{lo:1.00,hi:1.80,label:'น้อยที่สุด'}];
+            else usedCriteria = [{lo:2.34,hi:3.00,label:'มาก'},{lo:1.67,hi:2.33,label:'ปานกลาง'},{lo:1.00,hi:1.66,label:'น้อย'}];
+        }
+
+        function _interpretMean(mean) {
+            for (var ci = 0; ci < usedCriteria.length; ci++) {
+                if (mean >= usedCriteria[ci].lo && mean <= usedCriteria[ci].hi) return usedCriteria[ci].label;
             }
-            row['Mean'] = fmt(item.mean);
-            row['S.D.'] = fmt(item.sd);
-            row['Interpretation'] = item.interpretation;
-            return row;
-        });
+            return '';
+        }
+
+        // Column order
+        var likertColumns = ['No.', 'Variable'];
+        for (var lv = scale; lv >= 1; lv--) likertColumns.push(String(lv));
+        likertColumns.push('Mean', 'S.D.', 'Interpretation');
+
+        var rows = [];
+        var extras = [];
+        var groupSummaryRows = [];
+
+        if (hasGroups) {
+            // Build table with group headers and subtotals
+            var itemNo = 1;
+            groups.forEach(function(group, gi) {
+                // Group header row
+                var headerRow = { 'No.': '', 'Variable': '▶ ' + group.name };
+                for (var lv2 = scale; lv2 >= 1; lv2--) headerRow[String(lv2)] = '';
+                headerRow['Mean'] = ''; headerRow['S.D.'] = ''; headerRow['Interpretation'] = '';
+                rows.push(headerRow);
+
+                // Items in this group
+                var groupMeans = [];
+                group.vars.forEach(function(varName) {
+                    var item = null;
+                    result.items.forEach(function(it) { if (it.variable === varName) item = it; });
+                    if (!item) return;
+                    var row = { 'No.': itemNo++, 'Variable': '    ' + item.variable };
+                    for (var lv3 = scale; lv3 >= 1; lv3--) {
+                        var f = item.frequencies[lv3];
+                        row[String(lv3)] = f ? f.count + ' (' + fmt(f.pct, 1) + '%)' : '0';
+                    }
+                    row['Mean'] = fmt(item.mean);
+                    row['S.D.'] = fmt(item.sd);
+                    row['Interpretation'] = item.interpretation;
+                    rows.push(row);
+                    groupMeans.push(item.mean);
+                });
+
+                // Group subtotal
+                if (groupMeans.length > 0) {
+                    var gMean = jStat.mean(groupMeans);
+                    // Calculate group S.D. from raw data
+                    var allGroupVals = [];
+                    group.vars.forEach(function(v) { allGroupVals = allGroupVals.concat(getColumnData(v, true)); });
+                    var gSD = allGroupVals.length > 0 ? jStat.stdev(allGroupVals, true) : 0;
+                    var gInterp = _interpretMean(gMean);
+                    var subtotalRow = { 'No.': '', 'Variable': '  รวม ' + group.name };
+                    for (var lv4 = scale; lv4 >= 1; lv4--) subtotalRow[String(lv4)] = '';
+                    subtotalRow['Mean'] = fmt(gMean);
+                    subtotalRow['S.D.'] = fmt(gSD);
+                    subtotalRow['Interpretation'] = gInterp;
+                    rows.push(subtotalRow);
+
+                    groupSummaryRows.push({
+                        'ลำดับ': gi + 1, 'ด้าน/กลุ่ม': group.name,
+                        'จำนวนข้อ': group.vars.length, 'Mean': fmt(gMean),
+                        'S.D.': fmt(gSD), 'Interpretation': gInterp
+                    });
+                }
+            });
+        } else {
+            // No groups — flat list as before
+            rows = result.items.map(function (item) {
+                var row = { 'No.': item.no, 'Variable': item.variable };
+                for (var lv5 = scale; lv5 >= 1; lv5--) {
+                    var f2 = item.frequencies[lv5];
+                    row[String(lv5)] = f2 ? f2.count + ' (' + fmt(f2.pct, 1) + '%)' : '0';
+                }
+                row['Mean'] = fmt(item.mean); row['S.D.'] = fmt(item.sd); row['Interpretation'] = item.interpretation;
+                return row;
+            });
+        }
 
         // Overall row
-        var overallRow = { 'No.': '', 'Variable': 'รวม (Overall)' };
-        for (var lv = scale; lv >= 1; lv--) overallRow[String(lv)] = '';
+        var overallRow = { 'No.': '', 'Variable': 'รวมทั้งหมด (Overall)' };
+        for (var lv6 = scale; lv6 >= 1; lv6--) overallRow[String(lv6)] = '';
         overallRow['Mean'] = fmt(result.overall.mean);
         overallRow['S.D.'] = fmt(result.overall.sd);
         overallRow['Interpretation'] = result.overall.interpretation;
         rows.push(overallRow);
 
-        // Criteria reference table
-        var usedCriteria = criteria || [];
-        if (usedCriteria.length === 0 && result.items.length > 0) {
-            // Get defaults from Stats
-            if (scale === 5) {
-                usedCriteria = [{lo:4.21,hi:5.00,label:'มากที่สุด'},{lo:3.41,hi:4.20,label:'มาก'},{lo:2.61,hi:3.40,label:'ปานกลาง'},{lo:1.81,hi:2.60,label:'น้อย'},{lo:1.00,hi:1.80,label:'น้อยที่สุด'}];
-            } else {
-                usedCriteria = [{lo:2.34,hi:3.00,label:'มาก'},{lo:1.67,hi:2.33,label:'ปานกลาง'},{lo:1.00,hi:1.66,label:'น้อย'}];
-            }
-        }
+        // Extras
         var criteriaRows = usedCriteria.map(function(c) {
             return { 'ช่วงค่าเฉลี่ย': fmt(c.lo, 2) + ' - ' + fmt(c.hi, 2), 'ระดับการแปลผล': c.label };
         });
+        extras.push({ title: 'เกณฑ์การแปลผล (Interpretation Criteria)', data: criteriaRows });
 
-        // Ranking table
+        // Group summary table
+        if (groupSummaryRows.length > 0) {
+            // Add overall to group summary
+            groupSummaryRows.push({
+                'ลำดับ': '', 'ด้าน/กลุ่ม': 'รวมทั้งหมด',
+                'จำนวนข้อ': vars.length, 'Mean': fmt(result.overall.mean),
+                'S.D.': fmt(result.overall.sd), 'Interpretation': result.overall.interpretation
+            });
+            extras.push({ title: 'สรุปค่าเฉลี่ยรายด้าน (Group Summary)', data: groupSummaryRows });
+        }
+
+        // Ranking
         var rankRows = result.ranking.map(function (r) {
-            return {
-                'อันดับ': r.rank, 'Variable': r.variable,
-                'Mean': fmt(r.mean), 'S.D.': fmt(r.sd),
-                'Interpretation': r.interpretation
-            };
+            return { 'อันดับ': r.rank, 'Variable': r.variable, 'Mean': fmt(r.mean), 'S.D.': fmt(r.sd), 'Interpretation': r.interpretation };
         });
-
-        // Explicit column order to prevent JS numeric key sorting
-        var likertColumns = ['No.', 'Variable'];
-        for (var lv = scale; lv >= 1; lv--) likertColumns.push(String(lv));
-        likertColumns.push('Mean', 'S.D.', 'Interpretation');
+        extras.push({ title: 'การจัดลำดับ (Ranking)', data: rankRows });
 
         state.results['lk'] = {
-            data: rows,
-            columns: likertColumns,
-            title: 'Likert Scale Analysis (' + scale + '-point)',
-            extras: [
-                { title: 'เกณฑ์การแปลผล (Interpretation Criteria)', data: criteriaRows },
-                { title: 'การจัดลำดับ (Ranking)', data: rankRows }
-            ]
+            data: rows, columns: likertColumns,
+            title: 'Likert Scale Analysis (' + scale + '-point)' + (hasGroups ? ' — จัดกลุ่ม ' + groups.length + ' ด้าน' : ''),
+            extras: extras
         };
         displayResults('lk');
     }
@@ -5905,6 +6031,9 @@
     window.varModalDeselectAll = varModalDeselectAll;
     window.removePickerVar = removePickerVar;
     window.updateLikertCriteria = updateLikertCriteria;
+    window.addLikertGroup = addLikertGroup;
+    window.clearLikertGroups = clearLikertGroups;
+    window.assignLikertGroups = assignLikertGroups;
     window.openIntervalConfig = openIntervalConfig;
     window.closeIntervalConfig = closeIntervalConfig;
     window.applyIntervalConfig = applyIntervalConfig;
