@@ -1054,6 +1054,7 @@
         // Build the demographics table: Variable | Category | n | %
         var rows = [];
         var rowNum = 1;
+        var hasNumericStats = false;
 
         vars.forEach(function(varName) {
             var isNumeric = numericVars.indexOf(varName) !== -1;
@@ -1097,11 +1098,14 @@
                     }
                     rowNum++;
                 } else {
-                    // Default: show Mean, S.D., Min, Max in one row under the variable
+                    // Default: show Mean, S.D., Min, Max as separate columns in same row
+                    hasNumericStats = true;
                     rows.push({
                         'ลำดับ': rowNum++, 'คุณลักษณะ': varName,
-                        'รายการ': 'Mean = ' + fmt(desc.mean, 2) + '  S.D. = ' + fmt(desc.sd, 2) + '  Min = ' + fmt(desc.min, 2) + '  Max = ' + fmt(desc.max, 2),
+                        'รายการ': '(ตัวแปรเชิงปริมาณ)',
                         'จำนวน (n)': desc.n, 'ร้อยละ': '-',
+                        'Mean': fmt(desc.mean, 2), 'S.D.': fmt(desc.sd, 2),
+                        'Min': fmt(desc.min, 2), 'Max': fmt(desc.max, 2),
                     });
                 }
             } else {
@@ -1147,8 +1151,11 @@
             'ร้อยละ': '100.0',
         });
 
-        // Explicit column order
+        // Explicit column order — add Mean/S.D./Min/Max if numeric vars exist
         var columns = ['ลำดับ', 'คุณลักษณะ', 'รายการ', 'จำนวน (n)', 'ร้อยละ'];
+        if (hasNumericStats) {
+            columns = ['ลำดับ', 'คุณลักษณะ', 'รายการ', 'จำนวน (n)', 'ร้อยละ', 'Mean', 'S.D.', 'Min', 'Max'];
+        }
 
         state.results['demo'] = {
             data: rows,
@@ -4970,46 +4977,114 @@
             var N = parseFloat(document.getElementById('ss-pop').value) || 1000;
             var e = parseFloat(getSelectValue('ss-error')) || 0.05;
             var n = Math.ceil(N / (1 + N * e * e));
-            result = {'สูตร':'Taro Yamane','จำนวนประชากร (N)':N,'ค่าความคลาดเคลื่อน (e)':e,'ขนาดตัวอย่างที่คำนวณได้ (n)':n};
-            extras.push({title:'สูตร Yamane: n = N / (1 + Ne²)',data:[result]});
+            // Formula display
+            extras.push({title:'สูตร Taro Yamane (1967)',data:[
+                {'สูตร':'n = N / (1 + Ne²)', 'คำอธิบาย':'N = จำนวนประชากร, e = ค่าความคลาดเคลื่อนที่ยอมรับ (0.01, 0.05, 0.10)'},
+                {'สูตร':'ใช้เมื่อ','คำอธิบาย':'ทราบจำนวนประชากรที่แน่นอน, ตัวแปรไม่ซับซ้อน, ต้องการความง่าย'}
+            ]});
+            extras.push({title:'ขั้นตอนการแทนค่า',data:[
+                {'ขั้นตอน':'กำหนดค่า','รายละเอียด':'N = ' + N + ', e = ' + e},
+                {'ขั้นตอน':'แทนค่า','รายละเอียด':'n = ' + N + ' / (1 + ' + N + ' x ' + e + '²)'},
+                {'ขั้นตอน':'คำนวณตัวส่วน','รายละเอียด':'1 + ' + N + ' x ' + (e*e) + ' = 1 + ' + fmt(N*e*e,4) + ' = ' + fmt(1+N*e*e,4)},
+                {'ขั้นตอน':'ผลลัพธ์','รายละเอียด':'n = ' + N + ' / ' + fmt(1+N*e*e,4) + ' = ' + fmt(N/(1+N*e*e),2) + ' ≈ ' + n + ' คน'}
+            ]});
+            result = {'สูตร':'Taro Yamane','N (ประชากร)':N,'e (ความคลาดเคลื่อน)':e,'Ne²':fmt(N*e*e,4),'1+Ne²':fmt(1+N*e*e,4),'n (ขนาดตัวอย่าง)':n};
+            extras.push({title:'ผลการคำนวณ',data:[result]});
+            extras.push({title:'ข้อจำกัดของสูตร Yamane',data:[
+                {'ประเด็น':'ไม่คำนึงถึง Power','คำอธิบาย':'สูตรนี้ไม่พิจารณาอำนาจการทดสอบ (Statistical Power)'},
+                {'ประเด็น':'สมมติ p = 0.5','คำอธิบาย':'สูตร Yamane สมมติให้ความแปรปรวนสูงสุด (p=0.5) อาจได้ N มากเกินจำเป็น'},
+                {'ประเด็น':'เหมาะกับ','คำอธิบาย':'งานสำรวจ (Survey), วิจัยเชิงพรรณนา, ที่ไม่ต้องใช้สถิติเชิงอนุมาน'},
+                {'ประเด็น':'ไม่เหมาะกับ','คำอธิบาย':'Regression, ANOVA, t-test — ควรใช้ G*Power หรือ Cohen (1988) แทน'}
+            ]});
+            extras.push({title:'อ้างอิง',data:[{'Reference':'Yamane, T. (1967). Statistics: An Introductory Analysis (2nd ed.). New York: Harper and Row.'}]});
         } else if (formula === 'cochran') {
             var z = parseFloat(getSelectValue('ss-z')) || 1.96;
             var e2 = parseFloat(document.getElementById('ss-coch-e').value) || 0.05;
             var p = parseFloat(document.getElementById('ss-coch-p').value) || 0.50;
             var q = 1 - p;
             var n2 = Math.ceil((z * z * p * q) / (e2 * e2));
-            result = {'สูตร':'Cochran','Z':z,'p':p,'q':q,'e':e2,'ขนาดตัวอย่าง (n)':n2};
-            extras.push({title:'สูตร Cochran: n = Z²pq / e²',data:[result]});
+            extras.push({title:'สูตร Cochran (1977)',data:[
+                {'สูตร':'n₀ = Z²pq / e²','คำอธิบาย':'Z = ค่า Z จาก Confidence Level, p = สัดส่วนที่คาด, q = 1−p, e = ค่าความคลาดเคลื่อน'},
+                {'สูตร':'ใช้เมื่อ','คำอธิบาย':'ไม่ทราบจำนวนประชากร หรือประชากรมีจำนวนมาก (>10,000)'}
+            ]});
+            extras.push({title:'ขั้นตอนการแทนค่า',data:[
+                {'ขั้นตอน':'กำหนดค่า','รายละเอียด':'Z = ' + z + ' (Confidence ' + (z<1.7?'90':z<2?'95':'99') + '%), p = ' + p + ', q = ' + fmt(q,2) + ', e = ' + e2},
+                {'ขั้นตอน':'แทนค่า','รายละเอียด':'n₀ = ' + z + '² x ' + p + ' x ' + fmt(q,2) + ' / ' + e2 + '²'},
+                {'ขั้นตอน':'คำนวณตัวตั้ง','รายละเอียด':fmt(z*z,4) + ' x ' + fmt(p*q,4) + ' = ' + fmt(z*z*p*q,4)},
+                {'ขั้นตอน':'คำนวณตัวส่วน','รายละเอียด':e2 + '² = ' + fmt(e2*e2,4)},
+                {'ขั้นตอน':'ผลลัพธ์','รายละเอียด':'n₀ = ' + fmt(z*z*p*q,4) + ' / ' + fmt(e2*e2,4) + ' = ' + fmt(z*z*p*q/(e2*e2),2) + ' ≈ ' + n2 + ' คน'}
+            ]});
+            result = {'สูตร':'Cochran','Z':z,'p':p,'q':fmt(q,2),'e':e2,'Z²pq':fmt(z*z*p*q,4),'e²':fmt(e2*e2,4),'n₀ (ขนาดตัวอย่าง)':n2};
+            extras.push({title:'ผลการคำนวณ',data:[result]});
+            extras.push({title:'คำอธิบายพารามิเตอร์',data:[
+                {'พารามิเตอร์':'Z','ค่า':z,'คำอธิบาย':'Z=1.65 (90%), Z=1.96 (95%), Z=2.58 (99%) — ยิ่งมั่นใจมาก N ยิ่งมาก'},
+                {'พารามิเตอร์':'p','ค่า':p,'คำอธิบาย':'สัดส่วนที่คาดว่าจะพบ ถ้าไม่ทราบใช้ 0.50 (ได้ N มากที่สุด/ปลอดภัยที่สุด)'},
+                {'พารามิเตอร์':'e','ค่า':e2,'คำอธิบาย':'ค่าความคลาดเคลื่อนที่ยอมรับ เช่น 0.05 = ยอมรับคลาดเคลื่อน 5%'}
+            ]});
+            extras.push({title:'อ้างอิง',data:[{'Reference':'Cochran, W. G. (1977). Sampling Techniques (3rd ed.). New York: John Wiley & Sons.'}]});
         } else if (formula === 'krejcie') {
             var Nk = parseFloat(document.getElementById('ss-krej-pop').value) || 1000;
-            // Krejcie & Morgan formula: S = X²NP(1-P) / (d²(N-1) + X²P(1-P))
-            var X2 = 3.841; // chi-square at .05 with df=1
-            var Pk = 0.5; var dk = 0.05;
+            var X2 = 3.841; var Pk = 0.5; var dk = 0.05;
             var nk = Math.ceil((X2 * Nk * Pk * (1-Pk)) / (dk*dk*(Nk-1) + X2*Pk*(1-Pk)));
-            result = {'สูตร':'Krejcie & Morgan','จำนวนประชากร (N)':Nk,'ขนาดตัวอย่าง (S)':nk};
-            extras.push({title:'Krejcie & Morgan Table Formula (α=.05, P=.50)',data:[result]});
-            // Add common table values
-            var tableVals = [[10,10],[50,44],[100,80],[200,132],[300,169],[400,196],[500,217],[750,254],[1000,278],[1500,306],[2000,322],[3000,341],[5000,357],[10000,370],[50000,381],[100000,384]];
-            var tableRows = tableVals.map(function(v){return {'Population (N)':v[0],'Sample Size (S)':v[1]};});
-            extras.push({title:'ตาราง Krejcie & Morgan (อ้างอิง)',data:tableRows});
+            extras.push({title:'สูตร Krejcie & Morgan (1970)',data:[
+                {'สูตร':'S = X²NP(1−P) / [d²(N−1) + X²P(1−P)]','คำอธิบาย':'X² = Chi-square ที่ df=1 (3.841 สำหรับ α=.05), N = ประชากร, P = สัดส่วน (0.50), d = ค่าความคลาดเคลื่อน (0.05)'},
+                {'สูตร':'ใช้เมื่อ','คำอธิบาย':'ทราบจำนวนประชากร, ต้องการค่าจากตารางสำเร็จรูป, วิจัยเชิงสำรวจ'}
+            ]});
+            extras.push({title:'ขั้นตอนการแทนค่า',data:[
+                {'ขั้นตอน':'กำหนดค่า','รายละเอียด':'X² = 3.841, N = ' + Nk + ', P = 0.50, d = 0.05'},
+                {'ขั้นตอน':'ตัวตั้ง','รายละเอียด':'3.841 x ' + Nk + ' x 0.50 x 0.50 = ' + fmt(X2*Nk*Pk*(1-Pk),2)},
+                {'ขั้นตอน':'ตัวส่วน','รายละเอียด':'0.05² x (' + Nk + '−1) + 3.841 x 0.50 x 0.50 = ' + fmt(dk*dk*(Nk-1),4) + ' + ' + fmt(X2*Pk*(1-Pk),4) + ' = ' + fmt(dk*dk*(Nk-1)+X2*Pk*(1-Pk),4)},
+                {'ขั้นตอน':'ผลลัพธ์','รายละเอียด':'S = ' + fmt(X2*Nk*Pk*(1-Pk),2) + ' / ' + fmt(dk*dk*(Nk-1)+X2*Pk*(1-Pk),4) + ' = ' + fmt(X2*Nk*Pk*(1-Pk)/(dk*dk*(Nk-1)+X2*Pk*(1-Pk)),2) + ' ≈ ' + nk + ' คน'}
+            ]});
+            result = {'สูตร':'Krejcie & Morgan','N (ประชากร)':Nk,'S (ขนาดตัวอย่าง)':nk};
+            extras.push({title:'ผลการคำนวณ',data:[result]});
+            var tableVals = [[10,10],[15,14],[20,19],[30,28],[40,36],[50,44],[75,63],[100,80],[150,108],[200,132],[250,152],[300,169],[400,196],[500,217],[600,234],[700,248],[800,260],[900,269],[1000,278],[1200,291],[1500,306],[2000,322],[2500,333],[3000,341],[3500,346],[4000,351],[4500,354],[5000,357],[6000,361],[7000,364],[8000,367],[9000,368],[10000,370],[15000,375],[20000,377],[30000,379],[40000,380],[50000,381],[75000,382],[100000,384]];
+            var tableRows = tableVals.map(function(v){return {'N (ประชากร)':v[0],'S (ขนาดตัวอย่าง)':v[1]};});
+            extras.push({title:'ตารางสำเร็จรูป Krejcie & Morgan (α=.05, P=.50, d=.05)',data:tableRows});
+            extras.push({title:'อ้างอิง',data:[{'Reference':'Krejcie, R. V., & Morgan, D. W. (1970). Determining sample size for research activities. Educational and Psychological Measurement, 30(3), 607-610.'}]});
         } else if (formula === 'gpower') {
             var test = getSelectValue('ss-gp-test') || 'ttest';
             var es = parseFloat(document.getElementById('ss-gp-es').value) || 0.5;
             var alpha = parseFloat(document.getElementById('ss-gp-alpha').value) || 0.05;
             var power = parseFloat(document.getElementById('ss-gp-power').value) || 0.80;
             var groups = parseInt(document.getElementById('ss-gp-groups').value) || 2;
-            // Approximate using Cohen's formulas
             var za = jStat.normal.inv(1 - alpha/2, 0, 1);
             var zb = jStat.normal.inv(power, 0, 1);
             var nGP = 0;
-            if (test === 'ttest') { nGP = Math.ceil(2 * Math.pow((za + zb) / es, 2)); }
-            else if (test === 'paired') { nGP = Math.ceil(Math.pow((za + zb) / es, 2)); }
-            else if (test === 'anova') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es) * groups); }
-            else if (test === 'correlation') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es) + 3); }
-            else if (test === 'chi-square') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es)); }
-            else if (test === 'regression') { var f2 = es; nGP = Math.ceil((Math.pow(za+zb,2) * (1+groups*f2)) / f2 + groups + 1); }
-            result = {'Test':test,'Effect Size':es,'Alpha':alpha,'Power':power,'Groups/Predictors':groups,'Sample Size (per group)':nGP,'Total Sample':test==='ttest'?nGP*2:(test==='anova'?nGP:nGP)};
-            extras.push({title:'G*Power Approximation',data:[result]});
+            var formulaStr = '', testLabel = test, totalN = 0;
+            if (test === 'ttest') { nGP = Math.ceil(2 * Math.pow((za + zb) / es, 2)); formulaStr = 'n = 2 x [(Z_α + Z_β) / d]²'; testLabel = 'Independent t-test'; totalN = nGP * 2; }
+            else if (test === 'paired') { nGP = Math.ceil(Math.pow((za + zb) / es, 2)); formulaStr = 'n = [(Z_α + Z_β) / d]²'; testLabel = 'Paired t-test'; totalN = nGP; }
+            else if (test === 'anova') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es) * groups); formulaStr = 'n = k x (Z_α + Z_β)² / f²'; testLabel = 'One-way ANOVA'; totalN = nGP; }
+            else if (test === 'correlation') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es) + 3); formulaStr = 'n = (Z_α + Z_β)² / r² + 3'; testLabel = 'Correlation'; totalN = nGP; }
+            else if (test === 'chi-square') { nGP = Math.ceil(Math.pow((za + zb), 2) / (es * es)); formulaStr = 'n = (Z_α + Z_β)² / w²'; testLabel = 'Chi-Square'; totalN = nGP; }
+            else if (test === 'regression') { var f2g = es; nGP = Math.ceil((Math.pow(za+zb,2) * (1+groups*f2g)) / f2g + groups + 1); formulaStr = 'n = [(Z_α+Z_β)²(1+m*f²)] / f² + m + 1'; testLabel = 'Multiple Regression'; totalN = nGP; }
+            // Formula explanation
+            extras.push({title:'สูตร G*Power — ' + testLabel,data:[
+                {'สูตร':formulaStr,'คำอธิบาย':'Z_α = ' + fmt(za,4) + ' (α=' + alpha + '), Z_β = ' + fmt(zb,4) + ' (Power=' + power + '), Effect Size = ' + es},
+                {'สูตร':'ใช้เมื่อ','คำอธิบาย':'วางแผนงานวิจัยล่วงหน้า ต้องการทราบ N ที่มี Power เพียงพอสำหรับสถิติที่ใช้'}
+            ]});
+            extras.push({title:'ขั้นตอนการแทนค่า',data:[
+                {'ขั้นตอน':'พารามิเตอร์','รายละเอียด':'Z_α/2 = ' + fmt(za,4) + ', Z_β = ' + fmt(zb,4) + ', ES = ' + es + (test==='anova'||test==='regression'?', k/m = '+groups:'')},
+                {'ขั้นตอน':'Z_α + Z_β','รายละเอียด':fmt(za,4) + ' + ' + fmt(zb,4) + ' = ' + fmt(za+zb,4)},
+                {'ขั้นตอน':'(Z_α + Z_β)²','รายละเอียด':fmt(Math.pow(za+zb,2),4)},
+                {'ขั้นตอน':'ผลลัพธ์','รายละเอียด':'n = ' + nGP + (test==='ttest'?' (per group), Total = '+totalN:' คน')}
+            ]});
+            result = {'Test':testLabel,'สูตร':formulaStr,'Effect Size':es,'Alpha':alpha,'Power':power,'Z_α/2':fmt(za,4),'Z_β':fmt(zb,4)};
+            if (test==='ttest') { result['n (per group)'] = nGP; result['Total N'] = totalN; }
+            else if (test==='anova'||test==='regression') { result['Groups/Predictors'] = groups; result['N'] = nGP; }
+            else { result['N'] = nGP; }
+            extras.push({title:'ผลการคำนวณ',data:[result]});
+            extras.push({title:'เกณฑ์ Effect Size ตาม Cohen (1988)',data:[
+                {'สถิติ':'t-test (d)','Small':'0.20','Medium':'0.50','Large':'0.80','คำอธิบาย':'ความแตกต่างของค่าเฉลี่ย 2 กลุ่ม'},
+                {'สถิติ':'ANOVA (f)','Small':'0.10','Medium':'0.25','Large':'0.40','คำอธิบาย':'ความแตกต่างระหว่าง 3+ กลุ่ม'},
+                {'สถิติ':'Correlation (r)','Small':'0.10','Medium':'0.30','Large':'0.50','คำอธิบาย':'ขนาดสหสัมพันธ์'},
+                {'สถิติ':'Chi-Square (w)','Small':'0.10','Medium':'0.30','Large':'0.50','คำอธิบาย':'ขนาดอิทธิพลการทดสอบสัดส่วน'},
+                {'สถิติ':'Regression (f²)','Small':'0.02','Medium':'0.15','Large':'0.35','คำอธิบาย':'อำนาจพยากรณ์เพิ่มเติม'}
+            ]});
+            extras.push({title:'อ้างอิง',data:[
+                {'Reference':'Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences (2nd ed.). Lawrence Erlbaum.'},
+                {'Reference':'Faul, F., et al. (2007). G*Power 3: A flexible statistical power analysis program. Behavior Research Methods, 39(2), 175-191.'}
+            ]});
         } else if (formula === 'proportion') {
             var zp = parseFloat(getSelectValue('ss-prop-z')) || 1.96;
             var ep = parseFloat(document.getElementById('ss-prop-e').value) || 0.05;
@@ -5018,10 +5093,24 @@
             var n0 = Math.ceil((zp * zp * pp * (1 - pp)) / (ep * ep));
             var nFinal = n0;
             if (Np && Np > 0) { nFinal = Math.ceil(n0 / (1 + (n0 - 1) / Np)); }
-            result = {'สูตร':'Cochran Proportion','Z':zp,'p':pp,'e':ep,'n₀ (ไม่จำกัดประชากร)':n0};
-            if (Np) result['Population (N)'] = Np;
-            result['ขนาดตัวอย่าง (n)'] = nFinal;
-            extras.push({title:'Cochran Proportion: n₀ = Z²p(1-p)/e²' + (Np ? ', adjusted for finite population' : ''),data:[result]});
+            extras.push({title:'สูตร Cochran — Proportion (สัดส่วน)',data:[
+                {'สูตร':'n₀ = Z²p(1−p) / e²','คำอธิบาย':'สำหรับประชากรไม่จำกัด'},
+                {'สูตร':'n = n₀ / (1 + (n₀−1)/N)','คำอธิบาย':'ปรับแก้เมื่อทราบจำนวนประชากร (Finite Population Correction)'}
+            ]});
+            extras.push({title:'ขั้นตอนการแทนค่า',data:[
+                {'ขั้นตอน':'กำหนดค่า','รายละเอียด':'Z = ' + zp + ', p = ' + pp + ', e = ' + ep + (Np ? ', N = ' + Np : '')},
+                {'ขั้นตอน':'ตัวตั้ง','รายละเอียด':zp + '² x ' + pp + ' x ' + fmt(1-pp,2) + ' = ' + fmt(zp*zp*pp*(1-pp),4)},
+                {'ขั้นตอน':'ตัวส่วน','รายละเอียด':ep + '² = ' + fmt(ep*ep,4)},
+                {'ขั้นตอน':'n₀','รายละเอียด':fmt(zp*zp*pp*(1-pp),4) + ' / ' + fmt(ep*ep,4) + ' = ' + fmt(zp*zp*pp*(1-pp)/(ep*ep),2) + ' ≈ ' + n0 + ' คน'}
+            ]});
+            if (Np && Np > 0) {
+                extras[extras.length-1].data.push({'ขั้นตอน':'FPC','รายละเอียด':'n = ' + n0 + ' / (1 + (' + n0 + '−1)/' + Np + ') = ' + fmt(n0/(1+(n0-1)/Np),2) + ' ≈ ' + nFinal + ' คน'});
+            }
+            result = {'สูตร':'Cochran Proportion','Z':zp,'p':pp,'e':ep,'n₀':n0};
+            if (Np) result['N (ประชากร)'] = Np;
+            result['n (ขนาดตัวอย่าง)'] = nFinal;
+            extras.push({title:'ผลการคำนวณ',data:[result]});
+            extras.push({title:'อ้างอิง',data:[{'Reference':'Cochran, W. G. (1977). Sampling Techniques (3rd ed.). New York: John Wiley & Sons.'}]});
         } else if (formula === 'cohen-regression') {
             // ================================================================
             // Cohen (1988) — Multiple Regression Sample Size
