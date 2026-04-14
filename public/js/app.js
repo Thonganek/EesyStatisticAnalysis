@@ -5833,6 +5833,10 @@
     window.sendFollowupFromInput = sendFollowupFromInput;
     window.toggleSampleSizeInputs = toggleSampleSizeInputs;
     window.searchRelatedResearch = searchRelatedResearch;
+    window.openLambdaTable = openLambdaTable;
+    window.closeLambdaTable = closeLambdaTable;
+    window.renderLambdaTable = renderLambdaTable;
+    window.selectLambdaValue = selectLambdaValue;
 
     // =========================================================================
     // Sample Size Calculator — toggle inputs based on formula
@@ -5883,6 +5887,89 @@
             }
         } catch (err) {
             if (resultDiv) resultDiv.innerHTML = '<p class="error-text">Error: ' + err.message + '</p>';
+        }
+    }
+
+    // =========================================================================
+    // Lambda Table Modal — Cohen Table 9.4.2
+    // =========================================================================
+    var COHEN_LAMBDA = {
+        1:{0.25:{20:1.9,60:1.7,120:1.7,999:1.6},0.50:{20:4.1,60:3.9,120:3.8,999:3.8},0.60:{20:5.3,60:4.9,120:4.9,999:4.9},0.667:{20:6.2,60:5.8,120:5.7,999:5.7},0.70:{20:6.7,60:6.2,120:6.2,999:6.2},0.75:{20:7.5,60:7.0,120:6.9,999:6.9},0.80:{20:8.5,60:7.9,120:7.8,999:7.8},0.85:{20:9.7,60:9.1,120:9.0,999:9.0},0.90:{20:11.4,60:10.6,120:10.5,999:10.5},0.95:{20:14.0,60:13.2,120:13.0,999:13.0},0.99:{20:20.1,60:18.7,120:18.4,999:18.4}},
+        2:{0.25:{20:2.6,60:2.3,120:2.3,999:2.2},0.50:{20:5.7,60:5.1,120:5.0,999:5.0},0.60:{20:7.1,60:6.4,120:6.3,999:6.2},0.667:{20:8.2,60:7.4,120:7.2,999:7.2},0.70:{20:8.9,60:8.0,120:7.8,999:7.7},0.75:{20:9.9,60:8.9,120:8.7,999:8.6},0.80:{20:11.1,60:10.0,120:9.7,999:9.6},0.85:{20:12.7,60:11.4,120:11.1,999:11.0},0.90:{20:14.9,60:13.4,120:13.0,999:12.9},0.95:{20:18.4,60:16.4,120:15.9,999:15.8},0.99:{20:24.9,60:22.4,120:21.8,999:21.4}},
+        3:{0.25:{20:3.2,60:2.8,120:2.7,999:2.7},0.50:{20:7.0,60:6.2,120:6.1,999:6.0},0.60:{20:8.8,60:7.8,120:7.6,999:7.5},0.667:{20:10.0,60:8.9,120:8.7,999:8.6},0.70:{20:10.8,60:9.6,120:9.4,999:9.3},0.75:{20:12.0,60:10.7,120:10.4,999:10.3},0.80:{20:13.5,60:12.0,120:11.7,999:11.6},0.85:{20:15.3,60:13.6,120:13.2,999:13.1},0.90:{20:17.8,60:15.8,120:15.4,999:15.2},0.95:{20:21.7,60:19.3,120:18.8,999:18.6},0.99:{20:29.5,60:26.0,120:25.2,999:25.0}},
+        4:{0.25:{20:3.7,60:3.3,120:3.2,999:3.1},0.50:{20:8.2,60:7.2,120:7.0,999:6.9},0.60:{20:10.3,60:9.1,120:8.8,999:8.7},0.667:{20:11.7,60:10.3,120:10.0,999:9.9},0.70:{20:12.6,60:11.1,120:10.8,999:10.7},0.75:{20:14.0,60:12.3,120:12.0,999:11.9},0.80:{20:15.7,60:13.9,120:13.5,999:13.3},0.85:{20:17.7,60:15.6,120:15.2,999:15.0},0.90:{20:20.5,60:18.2,120:17.7,999:17.4},0.95:{20:25.0,60:22.1,120:21.4,999:21.2},0.99:{20:33.6,60:29.4,120:28.5,999:28.2}},
+        5:{0.25:{20:4.2,60:3.7,120:3.6,999:3.5},0.50:{20:9.4,60:8.1,120:7.9,999:7.8},0.60:{20:11.7,60:10.2,120:9.9,999:9.8},0.667:{20:13.3,60:11.6,120:11.3,999:11.1},0.70:{20:14.3,60:12.5,120:12.2,999:12.0},0.75:{20:15.8,60:13.9,120:13.5,999:13.3},0.80:{20:17.8,60:15.6,120:15.2,999:14.9},0.85:{20:20.0,60:17.6,120:17.1,999:16.9},0.90:{20:23.1,60:20.4,120:19.8,999:19.5},0.95:{20:28.1,60:24.7,120:24.0,999:23.7},0.99:{20:37.5,60:32.8,120:31.8,999:31.2}},
+        6:{0.25:{20:4.7,60:4.1,120:4.0,999:3.9},0.50:{20:10.4,60:9.0,120:8.8,999:8.6},0.60:{20:13.0,60:11.3,120:11.0,999:10.8},0.667:{20:14.8,60:12.9,120:12.5,999:12.3},0.70:{20:15.9,60:13.9,120:13.5,999:13.3},0.75:{20:17.6,60:15.4,120:14.9,999:14.7},0.80:{20:19.8,60:17.3,120:16.8,999:16.5},0.85:{20:22.3,60:19.5,120:18.9,999:18.6},0.90:{20:25.6,60:22.5,120:21.8,999:21.4},0.95:{20:31.2,60:27.3,120:26.5,999:26.0},0.99:{20:41.3,60:36.0,120:34.9,999:34.2}},
+        7:{0.25:{20:5.1,60:4.5,120:4.3,999:4.3},0.50:{20:11.5,60:9.9,120:9.6,999:9.4},0.60:{20:14.3,60:12.4,120:12.0,999:11.8},0.667:{20:16.2,60:14.1,120:13.7,999:13.5},0.70:{20:17.5,60:15.2,120:14.8,999:14.5},0.75:{20:19.3,60:16.9,120:16.4,999:16.1},0.80:{20:21.7,60:19.0,120:18.4,999:18.1},0.85:{20:24.4,60:21.4,120:20.7,999:20.4},0.90:{20:28.1,60:24.6,120:23.9,999:23.4},0.95:{20:34.1,60:29.9,120:28.9,999:28.4},0.99:{20:45.1,60:39.3,120:38.0,999:37.2}},
+        8:{0.25:{20:5.6,60:4.9,120:4.7,999:4.6},0.50:{20:12.5,60:10.8,120:10.4,999:10.3},0.60:{20:15.5,60:13.4,120:13.0,999:12.8},0.667:{20:17.6,60:15.3,120:14.8,999:14.6},0.70:{20:19.0,60:16.5,120:16.0,999:15.7},0.75:{20:21.0,60:18.3,120:17.8,999:17.5},0.80:{20:23.6,60:20.6,120:19.9,999:19.6},0.85:{20:26.6,60:23.2,120:22.5,999:22.1},0.90:{20:30.5,60:26.7,120:25.9,999:25.4},0.95:{20:37.0,60:32.4,120:31.3,999:30.8},0.99:{20:48.8,60:42.5,120:41.0,999:40.2}}
+    };
+
+    function openLambdaTable() {
+        var modal = document.getElementById('lambda-table-modal');
+        if (modal) { modal.style.display = 'flex'; renderLambdaTable(); }
+    }
+    function closeLambdaTable() {
+        var modal = document.getElementById('lambda-table-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function renderLambdaTable() {
+        var container = document.getElementById('lambda-table-container');
+        if (!container) return;
+        var filterU = getSelectValue('lambda-filter-u') || 'all';
+        var hlPower = getSelectValue('lambda-highlight-power') || '';
+
+        var powers = [0.25,0.50,0.60,0.667,0.70,0.75,0.80,0.85,0.90,0.95,0.99];
+        var powerLabels = {0.25:'.25',0.50:'.50',0.60:'.60',0.667:'2/3',0.70:'.70',0.75:'.75',0.80:'.80',0.85:'.85',0.90:'.90',0.95:'.95',0.99:'.99'};
+        var vLabels = {20:'20',60:'60',120:'120',999:'∞'};
+        var vKeys = [20,60,120,999];
+
+        var uList = filterU === 'all' ? [1,2,3,4,5,6,7,8] : [parseInt(filterU)];
+
+        var html = '<table class="result-table" style="font-size:0.78rem;white-space:nowrap">';
+        html += '<thead><tr style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff">';
+        html += '<th style="position:sticky;left:0;z-index:2;background:#4f46e5">u</th>';
+        html += '<th style="position:sticky;left:28px;z-index:2;background:#4f46e5">v</th>';
+        powers.forEach(function(p) {
+            var isHL = hlPower && Math.abs(p - parseFloat(hlPower)) < 0.01;
+            html += '<th colspan="1" style="text-align:center;' + (isHL ? 'background:#dc2626;font-size:0.88rem' : '') + '">Power<br>' + powerLabels[p] + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        uList.forEach(function(uVal) {
+            var data = COHEN_LAMBDA[uVal];
+            if (!data) return;
+            vKeys.forEach(function(vVal, vi) {
+                html += '<tr' + (vi === 0 ? ' style="border-top:2px solid #6366f1"' : '') + '>';
+                if (vi === 0) html += '<td rowspan="4" style="position:sticky;left:0;background:#eef2ff;font-weight:700;font-size:0.9rem;color:#4f46e5;text-align:center">' + uVal + '</td>';
+                html += '<td style="position:sticky;left:28px;background:#f8fafc;font-weight:600">' + vLabels[vVal] + '</td>';
+                powers.forEach(function(p) {
+                    var val = data[p] ? data[p][vVal] : '';
+                    var isHL = hlPower && Math.abs(p - parseFloat(hlPower)) < 0.01;
+                    var cellStyle = isHL ? 'background:#fef2f2;font-weight:700;color:#dc2626;cursor:pointer' : 'cursor:pointer';
+                    html += '<td style="text-align:center;' + cellStyle + '" onclick="selectLambdaValue(' + val + ',' + uVal + ',' + vVal + ',' + p + ')" title="คลิกเพื่อเลือก λ=' + val + '">' + (val || '—') + '</td>';
+                });
+                html += '</tr>';
+            });
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function selectLambdaValue(lambda, uVal, vVal, power) {
+        closeLambdaTable();
+        alert('เลือก λ = ' + lambda + '\n(u=' + uVal + ', v=' + (vVal >= 999 ? '∞' : vVal) + ', Power=' + power + ')\n\nค่านี้จะถูกใช้อัตโนมัติเมื่อกดคำนวณ โดยระบบจะอ่านจากตารางตาม u และ Power ที่ตั้งค่าไว้');
+        // Set u and power to match selection
+        var uInput = document.getElementById('ss-cr-u');
+        if (uInput) uInput.value = uVal;
+        var pwrSelect = document.getElementById('ss-cr-power');
+        if (pwrSelect) {
+            for (var i = 0; i < pwrSelect.options.length; i++) {
+                if (Math.abs(parseFloat(pwrSelect.options[i].value) - power) < 0.01) {
+                    pwrSelect.selectedIndex = i; break;
+                }
+            }
         }
     }
 

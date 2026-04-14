@@ -3118,6 +3118,10 @@
                     </select></div>
             </div>
 
+            <button class="btn btn-export" type="button" onclick="openLambdaTable()" style="margin:10px 0 14px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:none;font-weight:700;font-size:0.92rem;padding:10px 20px">
+                📊 เปิดตาราง λ ของ Cohen (Table 9.4.2)
+            </button>
+
             <h4 style="margin:14px 0 8px;color:#1e40af">จำนวนประชากรจริง (ถ้าทราบ — สำหรับ Finite Population Correction)</h4>
             <div class="form-group"><label>Population — ใส่เมื่อประชากรมีจำนวนน้อยกว่า N ที่คำนวณได้</label>
                 <input type="number" id="ss-cr-population" class="form-input" value="" placeholder="ไม่ระบุ (ไม่จำกัด)" min="1">
@@ -3131,6 +3135,53 @@
         <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="ss-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4 — อ้างอิงสูตร</option><option value="explain">อธิบายง่าย</option></select></div>
             <button class="btn btn-ai" onclick="aiAnalyze('ss')">🤖 AI วิเคราะห์ผล — แนะนำการอ้างอิง</button><div id="ss-ai-result" class="ai-result-box" style="display:none"></div></div>
         <div class="export-area"><button class="btn btn-export" onclick="exportExcel('ss')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('ss')">📥 Word</button></div></div>
+</div>
+
+<!-- Lambda Table Modal -->
+<div id="lambda-table-modal" class="modal-overlay" style="display:none">
+    <div class="modal-content" style="max-width:95vw;width:1100px;max-height:92vh">
+        <div class="modal-header" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
+            <h3 style="color:#fff;margin:0">📊 Cohen's λ Table (Table 9.4.2) — α = .05</h3>
+            <button class="modal-close" onclick="closeLambdaTable()" style="color:#fff;font-size:1.5rem">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;overflow:auto">
+            <p style="font-size:0.84rem;color:#475569;margin:0 0 10px">
+                <strong>วิธีใช้:</strong> 1) หา <strong>u</strong> (จำนวนตัวแปรที่ทดสอบ) ในคอลัมน์ซ้าย →
+                2) หา <strong>v</strong> (df residual = N−u−w−1) →
+                3) หา <strong>Power</strong> ที่ต้องการ → 4) อ่านค่า <strong>λ</strong> ตรงจุดตัด<br>
+                <strong style="color:#dc2626">คลิกที่ค่า λ เพื่อเลือกใช้ในการคำนวณ</strong>
+            </p>
+
+            <!-- Filter -->
+            <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+                <label style="font-size:0.84rem;font-weight:600">กรอง u:</label>
+                <select id="lambda-filter-u" class="form-select" style="width:auto;min-width:80px" onchange="renderLambdaTable()">
+                    <option value="all">ทั้งหมด</option>
+                    <option value="1">u = 1</option><option value="2">u = 2</option><option value="3">u = 3</option>
+                    <option value="4">u = 4</option><option value="5">u = 5</option><option value="6">u = 6</option>
+                    <option value="7">u = 7</option><option value="8">u = 8</option>
+                </select>
+                <label style="font-size:0.84rem;font-weight:600">Highlight Power:</label>
+                <select id="lambda-highlight-power" class="form-select" style="width:auto;min-width:80px" onchange="renderLambdaTable()">
+                    <option value="">ไม่ Highlight</option>
+                    <option value="0.80" selected>.80</option><option value="0.90">.90</option><option value="0.95">.95</option>
+                </select>
+            </div>
+
+            <div id="lambda-table-container" style="overflow-x:auto"></div>
+
+            <div class="detail-box" style="margin-top:12px;font-size:0.82rem">
+                <strong>หมายเหตุ:</strong><br>
+                — u = จำนวนตัวแปรอิสระที่ต้องการทดสอบ (Set B)<br>
+                — v = df residual = N − u − w − 1 (ถ้ายังไม่รู้ N ให้เริ่มที่ v = 120)<br>
+                — ∞ = Infinity (ค่า v มากพอ)<br>
+                — ตาราง α = .05 (two-tailed), อ้างอิง: Cohen, J. (1988). Table 9.4.2
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeLambdaTable()">✅ ปิด</button>
+        </div>
+    </div>
 </div>
 
 <!-- ================================================== -->
