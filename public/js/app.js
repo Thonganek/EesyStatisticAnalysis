@@ -1026,7 +1026,7 @@
                 case 'homogeneity': runHomogeneity(); break;
                 case 'manova': runManova(); break;
                 case 'games-howell': runGamesHowell(); break;
-                case 'multiple-regression': runMultipleRegression(); break;
+                case 'multiple-regression': runLinearRegression(); break;
                 case 'kappa': runKappa(); break;
                 case 'cfa': runCFA(); break;
                 case 'item-analysis': runItemAnalysis(); break;
@@ -1097,16 +1097,11 @@
                     }
                     rowNum++;
                 } else {
-                    // Default: show Mean, S.D.
+                    // Default: show Mean, S.D., Min, Max in one row under the variable
                     rows.push({
                         'ลำดับ': rowNum++, 'คุณลักษณะ': varName,
-                        'รายการ': 'Mean = ' + fmt(desc.mean, 2) + ', S.D. = ' + fmt(desc.sd, 2),
+                        'รายการ': 'Mean = ' + fmt(desc.mean, 2) + '  S.D. = ' + fmt(desc.sd, 2) + '  Min = ' + fmt(desc.min, 2) + '  Max = ' + fmt(desc.max, 2),
                         'จำนวน (n)': desc.n, 'ร้อยละ': '-',
-                    });
-                    rows.push({
-                        'ลำดับ': '', 'คุณลักษณะ': '',
-                        'รายการ': 'Min = ' + fmt(desc.min, 2) + ', Max = ' + fmt(desc.max, 2),
-                        'จำนวน (n)': '', 'ร้อยละ': '',
                     });
                 }
             } else {

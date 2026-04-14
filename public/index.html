@@ -190,8 +190,7 @@
                 <div class="menu-group-items">
                     <button class="menu-item" onclick="navigateTo('correlation')">Pearson / Spearman / Kendall</button>
                     <button class="menu-item" onclick="navigateTo('partial-corr')">Partial Correlation</button>
-                    <button class="menu-item" onclick="navigateTo('linear-regression')">Simple Linear Regression</button>
-                    <button class="menu-item" onclick="navigateTo('multiple-regression')">Multiple Regression</button>
+                    <button class="menu-item" onclick="navigateTo('linear-regression')">Linear / Multiple Regression</button>
                     <button class="menu-item" onclick="navigateTo('hierarchical-reg')">Hierarchical Regression</button>
                     <button class="menu-item" onclick="navigateTo('logistic-regression')">Logistic Regression</button>
                     <button class="menu-item" onclick="navigateTo('roc')">ROC Curve / AUC</button>
@@ -1681,20 +1680,22 @@
         <!-- PAGE: LINEAR REGRESSION                             -->
         <!-- ================================================== -->
         <div class="page" id="page-linear-regression">
-            <h2 class="page-title">📈 Linear Regression</h2>
+            <h2 class="page-title">📈 Linear / Multiple Linear Regression</h2>
 
         <details class="stat-guide">
-            <summary>📖 เมื่อไหร่ควรใช้ Linear Regression ?</summary>
+            <summary>📖 เมื่อไหร่ควรใช้ Linear / Multiple Linear Regression ?</summary>
             <div class="stat-guide-content">
-                <p><strong>วัตถุประสงค์:</strong> พยากรณ์ตัวแปรตามจากตัวแปรอิสระ</p>
+                <p><strong>วัตถุประสงค์:</strong> พยากรณ์ตัวแปรตามจากตัวแปรอิสระ 1 ตัวขึ้นไป</p>
                 <p><strong>เงื่อนไข:</strong></p>
                 <ul>
                     <li>ตัวแปรตามเป็นตัวเลขต่อเนื่อง</li>
                     <li>ความสัมพันธ์เชิงเส้น</li>
-                    <li>Residuals ปกติ</li>
+                    <li>Residuals แจกแจงปกติ</li>
+                    <li>ไม่มี Multicollinearity (ถ้า IV หลายตัว)</li>
                 </ul>
-                <p><strong>ข้อมูลที่ต้องมี:</strong> ตัวแปรตาม (DV) 1 ตัว + ตัวแปรอิสระ (IV) 1 ตัวขึ้นไป</p>
-                <p><strong>ตัวอย่าง:</strong> ปัจจัยที่ส่งผลต่อผลสัมฤทธิ์ทางการเรียน</p>
+                <p><strong>Simple Linear Regression:</strong> IV 1 ตัว → DV 1 ตัว</p>
+                <p><strong>Multiple Linear Regression:</strong> IV 2+ ตัว → DV 1 ตัว (Enter / Stepwise / Forward / Backward)</p>
+                <p><strong>ตัวอย่าง:</strong> ปัจจัยที่ส่งผลต่อผลสัมฤทธิ์ทางการเรียน, ตัวแปรพยากรณ์ความพึงพอใจ</p>
             </div>
         </details>
 
