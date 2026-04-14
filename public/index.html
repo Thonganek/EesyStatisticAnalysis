@@ -3063,12 +3063,24 @@
             <!-- AI Search for Related Research -->
             <div class="card" style="background:linear-gradient(135deg,#fefce8,#fef3c7);border:1px solid #fbbf24;margin-bottom:16px">
                 <h4 style="margin:0 0 10px;color:#92400e">🔍 AI ค้นหางานวิจัยที่เกี่ยวข้อง — หาค่า R² จากงานวิจัยเดิม</h4>
-                <p style="font-size:0.82rem;color:#78716c;margin:0 0 10px">พิมพ์หัวข้อวิจัยหรือตัวแปรที่ศึกษา AI จะค้นหางานวิจัยที่เกี่ยวข้องและแนะนำค่า R² ที่ควรใช้</p>
+                <p style="font-size:0.82rem;color:#78716c;margin:0 0 10px">พิมพ์หัวข้อวิจัย ตัวแปรต้น ตัวแปรตาม และสาขาวิชา — AI จะค้นหางานวิจัยจากฐานข้อมูลทั่วโลก สรุปค่า R² พร้อมลิงก์แหล่งที่มา</p>
+
                 <div class="form-group" style="margin-bottom:8px">
-                    <input type="text" id="ss-cr-research-query" class="form-input" placeholder="เช่น: บรรยากาศองค์กรที่มีอิทธิพลต่อการบริหารจัดการข้อมูล, ปัจจัยที่ส่งผลต่อผลสัมฤทธิ์ทางการเรียน" style="font-size:0.88rem">
+                    <label style="font-weight:600;font-size:0.84rem">หัวข้อวิจัย / ตัวแปรที่ศึกษา</label>
+                    <input type="text" id="ss-cr-research-query" class="form-input" placeholder="เช่น: บรรยากาศองค์กรที่มีอิทธิพลต่อการบริหารจัดการข้อมูล" style="font-size:0.88rem">
                 </div>
-                <button class="btn btn-ai" onclick="searchRelatedResearch()" style="margin-bottom:8px">🤖 AI ค้นหางานวิจัย + แนะนำค่า R²</button>
-                <div id="ss-cr-research-result" style="display:none;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:0.84rem;max-height:300px;overflow-y:auto"></div>
+                <div class="form-row" style="margin-bottom:8px">
+                    <div class="form-group"><label style="font-size:0.82rem">ตัวแปรต้น (IV)</label>
+                        <input type="text" id="ss-cr-research-iv" class="form-input" placeholder="เช่น: บรรยากาศองค์กร, แรงจูงใจ" style="font-size:0.84rem"></div>
+                    <div class="form-group"><label style="font-size:0.82rem">ตัวแปรตาม (DV)</label>
+                        <input type="text" id="ss-cr-research-dv" class="form-input" placeholder="เช่น: ผลสัมฤทธิ์, การบริหารจัดการ" style="font-size:0.84rem"></div>
+                    <div class="form-group"><label style="font-size:0.82rem">สาขา / บริบท</label>
+                        <input type="text" id="ss-cr-research-field" class="form-input" placeholder="เช่น: สาธารณสุข, การศึกษา, บริหารธุรกิจ" style="font-size:0.84rem"></div>
+                </div>
+
+                <button class="btn btn-ai" onclick="searchRelatedResearch()" style="margin-bottom:8px;font-size:0.92rem;padding:10px 20px">🤖 AI ค้นหางานวิจัย + สรุปค่า R² ที่ควรใช้</button>
+
+                <div id="ss-cr-research-result" style="display:none;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;font-size:0.84rem;max-height:500px;overflow-y:auto"></div>
             </div>
 
             <h4 style="margin:0 0 8px;color:#1e40af">ข้อมูลจากงานวิจัยเดิม (Previous Research)</h4>

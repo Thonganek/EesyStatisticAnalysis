@@ -5833,6 +5833,7 @@
     window.sendFollowupFromInput = sendFollowupFromInput;
     window.toggleSampleSizeInputs = toggleSampleSizeInputs;
     window.searchRelatedResearch = searchRelatedResearch;
+    window.applyResearchR2 = applyResearchR2;
     window.openLambdaTable = openLambdaTable;
     window.closeLambdaTable = closeLambdaTable;
     window.renderLambdaTable = renderLambdaTable;
@@ -5845,25 +5846,61 @@
     // AI Search Related Research — for Cohen (1988) R² lookup
     // =========================================================================
     async function searchRelatedResearch() {
-        var query = document.getElementById('ss-cr-research-query');
-        if (!query || !query.value.trim()) { alert('กรุณาพิมพ์หัวข้อวิจัยหรือตัวแปรที่ต้องการค้นหา'); return; }
+        var queryEl = document.getElementById('ss-cr-research-query');
+        var ivEl = document.getElementById('ss-cr-research-iv');
+        var dvEl = document.getElementById('ss-cr-research-dv');
+        var fieldEl = document.getElementById('ss-cr-research-field');
+        var topic = queryEl ? queryEl.value.trim() : '';
+        var ivText = ivEl ? ivEl.value.trim() : '';
+        var dvText = dvEl ? dvEl.value.trim() : '';
+        var fieldText = fieldEl ? fieldEl.value.trim() : '';
+
+        if (!topic && !ivText && !dvText) { alert('กรุณาพิมพ์หัวข้อวิจัย หรือตัวแปรต้น/ตัวแปรตาม อย่างน้อย 1 อย่าง'); return; }
         if (!state.aiSettings.apiKey) { alert('กรุณาตั้งค่า API Key ใน AI Settings ก่อน'); return; }
 
         var resultDiv = document.getElementById('ss-cr-research-result');
         if (resultDiv) {
-            resultDiv.innerHTML = '<p class="loading">🔍 กำลังค้นหางานวิจัยที่เกี่ยวข้อง...</p>';
+            resultDiv.innerHTML = '<div style="text-align:center;padding:20px"><p class="loading">🔍 กำลังค้นหางานวิจัยจากฐานข้อมูลทั่วโลก...</p><p style="font-size:0.8rem;color:#64748b">Google Scholar, PubMed, Scopus, ThaiJO, TCI, Web of Science</p></div>';
             resultDiv.style.display = '';
         }
 
-        var prompt = 'คุณคือผู้เชี่ยวชาญด้านสถิติวิจัย กรุณาค้นหาและแนะนำงานวิจัยที่เกี่ยวข้องกับหัวข้อ:\n\n' +
-            '"' + query.value.trim() + '"\n\n' +
-            'กรุณาตอบในรูปแบบนี้:\n' +
-            '1. แนะนำงานวิจัยที่เกี่ยวข้อง 3-5 เรื่อง (ชื่อผู้แต่ง, ปี, ชื่อเรื่อง)\n' +
-            '2. ระบุค่า R² ที่พบในงานวิจัยเหล่านั้น (R² full model, R² change ของตัวแปรที่เกี่ยวข้อง)\n' +
-            '3. แนะนำค่า R²_Y.A,B (Full Model) และ R²_Y.A (Reduced Model) ที่ควรใช้ในการคำนวณขนาดตัวอย่างตาม Cohen (1988)\n' +
-            '4. ระบุจำนวนตัวแปรอิสระ (u และ w) ที่แนะนำ\n' +
-            '5. แนะนำฐานข้อมูลที่ควรค้นหาเพิ่มเติม เช่น Google Scholar, PubMed, ThaiJO, TCI, Scopus, Web of Science\n' +
-            'ตอบเป็นภาษาไทย กระชับ พร้อมใช้งาน';
+        var searchDesc = '';
+        if (topic) searchDesc += 'หัวข้อวิจัย: ' + topic + '\n';
+        if (ivText) searchDesc += 'ตัวแปรต้น (IV): ' + ivText + '\n';
+        if (dvText) searchDesc += 'ตัวแปรตาม (DV): ' + dvText + '\n';
+        if (fieldText) searchDesc += 'สาขา/บริบท: ' + fieldText + '\n';
+
+        var prompt = 'คุณคือผู้เชี่ยวชาญด้านการทบทวนวรรณกรรมและสถิติวิจัย (Systematic Review Expert)\n\n' +
+            'ผู้ใช้ต้องการค้นหางานวิจัยเดิม (Previous Research) เพื่อนำค่า R² ไปใช้คำนวณขนาดตัวอย่างด้วยสูตร Cohen (1988) Multiple Regression\n\n' +
+            'ข้อมูลงานวิจัยของผู้ใช้:\n' + searchDesc + '\n' +
+            'กรุณาตอบตามโครงสร้างนี้ครบทุกหัวข้อ:\n\n' +
+            '=== ส่วนที่ 1: งานวิจัยที่เกี่ยวข้อง ===\n' +
+            'แนะนำ 3-5 งานวิจัยที่ใกล้เคียงที่สุด โดยในแต่ละงานระบุ:\n' +
+            '- ชื่อผู้แต่ง (ปี). ชื่อเรื่อง. วารสาร/แหล่งตีพิมพ์\n' +
+            '- R² ของ Full Model\n' +
+            '- R² Change ของตัวแปรที่เกี่ยวข้อง (ถ้ามี)\n' +
+            '- จำนวนตัวแปรอิสระ\n' +
+            '- ขนาดตัวอย่าง\n' +
+            '- สถิติที่ใช้\n\n' +
+            '=== ส่วนที่ 2: สรุปค่า R² ที่แนะนำสำหรับงานนี้ ===\n' +
+            'จากงานวิจัยข้างต้น สรุปค่าที่ควรใช้:\n' +
+            '- R²_Y.A,B (Full Model) = ?\n' +
+            '- R²_Y.A (Reduced Model) = ?\n' +
+            '- R² Change = ?\n' +
+            '- u (จำนวนตัวแปรที่ทดสอบ) = ?\n' +
+            '- w (จำนวนตัวแปรควบคุม) = ?\n' +
+            '- เหตุผลที่แนะนำค่านี้\n\n' +
+            '=== ส่วนที่ 3: แหล่งค้นหาเพิ่มเติม ===\n' +
+            'แนะนำฐานข้อมูลและ keyword สำหรับค้นหาเพิ่มเติม:\n' +
+            '- Google Scholar: keyword ที่ควรใช้\n' +
+            '- PubMed: keyword\n' +
+            '- Scopus / Web of Science: keyword\n' +
+            '- ThaiJO / TCI: keyword ภาษาไทย\n' +
+            '- ProQuest / ERIC: keyword (ถ้าเกี่ยวข้อง)\n\n' +
+            '=== ส่วนที่ 4: ข้อควรระวัง ===\n' +
+            '- ข้อจำกัดของการใช้ R² จากงานวิจัยอื่น\n' +
+            '- แนะนำวิธีรายงานในวิทยานิพนธ์/งานวิจัย\n\n' +
+            'ตอบเป็นภาษาไทย ชัดเจน พร้อมใช้งาน ให้ค่าตัวเลข R² ที่เจาะจง';
 
         try {
             var response = await fetch('/api/ai/chat', {
@@ -5873,21 +5910,93 @@
                     apiKey: state.aiSettings.apiKey,
                     model: state.aiSettings.model,
                     history: [{ role: 'user', content: prompt }],
-                    context: 'ผู้ใช้ต้องการหาค่า R² จากงานวิจัยเดิมเพื่อใช้คำนวณขนาดตัวอย่างด้วยสูตร Cohen (1988) Multiple Regression'
+                    context: 'Expert research literature reviewer helping find R² values from previous studies for Cohen (1988) sample size calculation. Search databases: Google Scholar, PubMed, Scopus, Web of Science, ThaiJO, TCI, ProQuest, ERIC. The user needs specific R² values to plug into the formula.'
                 })
             });
-            if (!response.ok) throw new Error('AI request failed');
+            if (!response.ok) throw new Error('AI request failed: ' + response.status);
             var json = await response.json();
             var reply = json.reply || json.result || json.text || 'ไม่พบผลลัพธ์';
             reply = cleanAIText(reply);
+
+            // Parse recommended R² values from reply using regex
+            var r2FullMatch = reply.match(/R²[_\s]*(?:Y\.A,B|full|Full)[^=]*=\s*(0\.\d+)/i);
+            var r2RedMatch = reply.match(/R²[_\s]*(?:Y\.A[^,]|reduced|Reduced)[^=]*=\s*(0\.\d+)/i);
+            var r2ChgMatch = reply.match(/R²[_\s]*(?:Change|change|Y\.B)[^=]*=\s*(0\.\d+)/i);
+            var uMatch = reply.match(/u[^=]*=\s*(\d+)/);
+            var wMatch = reply.match(/w[^=]*=\s*(\d+)/);
+
+            var recR2Full = r2FullMatch ? r2FullMatch[1] : null;
+            var recR2Red = r2RedMatch ? r2RedMatch[1] : null;
+            var recU = uMatch ? uMatch[1] : null;
+            var recW = wMatch ? wMatch[1] : null;
+
+            // If we have R² full and change but not reduced, calculate it
+            if (recR2Full && !recR2Red && r2ChgMatch) {
+                recR2Red = (parseFloat(recR2Full) - parseFloat(r2ChgMatch[1])).toFixed(3);
+            }
+
             if (resultDiv) {
-                resultDiv.innerHTML = '<h4 style="margin:0 0 8px;color:#1e40af">🤖 ผลการค้นหางานวิจัยที่เกี่ยวข้อง</h4>' +
-                    '<div style="white-space:pre-wrap;line-height:1.7">' + reply.replace(/\n/g,'<br>') + '</div>' +
-                    '<p style="margin:10px 0 0;font-size:0.78rem;color:#64748b">💡 นำค่า R² ที่แนะนำไปกรอกในช่องด้านล่าง แล้วกดคำนวณ</p>';
+                var html = '';
+
+                // Auto-apply panel
+                if (recR2Full || recR2Red) {
+                    html += '<div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:2px solid #10b981;border-radius:10px;padding:14px;margin-bottom:14px">';
+                    html += '<h4 style="margin:0 0 8px;color:#065f46">🎯 ค่า R² ที่ AI แนะนำ — กดปุ่มเพื่อนำไปใช้ทันที</h4>';
+                    html += '<table style="width:100%;font-size:0.86rem;border-collapse:collapse">';
+                    if (recR2Full) html += '<tr><td style="padding:4px 8px;font-weight:600">R²<sub>Y.A,B</sub> (Full Model)</td><td style="padding:4px 8px;color:#059669;font-weight:700;font-size:1rem">' + recR2Full + '</td></tr>';
+                    if (recR2Red) html += '<tr><td style="padding:4px 8px;font-weight:600">R²<sub>Y.A</sub> (Reduced Model)</td><td style="padding:4px 8px;color:#059669;font-weight:700;font-size:1rem">' + recR2Red + '</td></tr>';
+                    if (r2ChgMatch) html += '<tr><td style="padding:4px 8px;font-weight:600">R² Change</td><td style="padding:4px 8px;color:#059669;font-weight:700;font-size:1rem">' + r2ChgMatch[1] + '</td></tr>';
+                    if (recU) html += '<tr><td style="padding:4px 8px;font-weight:600">u (ตัวแปรทดสอบ)</td><td style="padding:4px 8px">' + recU + '</td></tr>';
+                    if (recW) html += '<tr><td style="padding:4px 8px;font-weight:600">w (ตัวแปรควบคุม)</td><td style="padding:4px 8px">' + recW + '</td></tr>';
+                    html += '</table>';
+                    html += '<button class="btn btn-primary" style="margin-top:10px;font-size:0.9rem" onclick="applyResearchR2(' +
+                        (recR2Full||'null') + ',' + (recR2Red||'null') + ',' + (recU||'null') + ',' + (recW||'null') +
+                        ')">✅ นำค่า R² ไปใช้คำนวณ (Auto-fill)</button>';
+                    html += '</div>';
+                }
+
+                // Main AI response
+                html += '<h4 style="margin:0 0 10px;color:#1e40af">📚 ผลการค้นหางานวิจัยที่เกี่ยวข้อง</h4>';
+                html += '<div style="white-space:pre-wrap;line-height:1.8;font-size:0.84rem">' + reply.replace(/\n/g,'<br>') + '</div>';
+
+                // Quick search links
+                var searchKeyword = encodeURIComponent(topic || (ivText + ' ' + dvText));
+                html += '<div style="margin-top:14px;padding:12px;background:#f1f5f9;border-radius:8px">';
+                html += '<h4 style="margin:0 0 8px;color:#334155;font-size:0.88rem">🔗 ค้นหาเพิ่มเติมในฐานข้อมูล (คลิกเปิดในแท็บใหม่)</h4>';
+                html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+                html += '<a href="https://scholar.google.com/scholar?q=' + searchKeyword + '+multiple+regression+R²" target="_blank" rel="noopener" class="suggestion-btn-sm" style="text-decoration:none">Google Scholar</a>';
+                html += '<a href="https://pubmed.ncbi.nlm.nih.gov/?term=' + searchKeyword + '+regression" target="_blank" rel="noopener" class="suggestion-btn-sm" style="text-decoration:none">PubMed</a>';
+                html += '<a href="https://www.scopus.com/results/results.uri?query=' + searchKeyword + '" target="_blank" rel="noopener" class="suggestion-btn-sm" style="text-decoration:none">Scopus</a>';
+                html += '<a href="https://www.tci-thaijo.org/index.php/search?q=' + searchKeyword + '" target="_blank" rel="noopener" class="suggestion-btn-sm" style="text-decoration:none">ThaiJO / TCI</a>';
+                html += '<a href="https://eric.ed.gov/?q=' + searchKeyword + '" target="_blank" rel="noopener" class="suggestion-btn-sm" style="text-decoration:none">ERIC</a>';
+                html += '<a href="https://search.proquest.com/results?query=' + searchKeyword + '" target="_blank" rel="noopener" class="suggestion-btn-sm" style="text-decoration:none">ProQuest</a>';
+                html += '</div></div>';
+
+                resultDiv.innerHTML = html;
             }
         } catch (err) {
             if (resultDiv) resultDiv.innerHTML = '<p class="error-text">Error: ' + err.message + '</p>';
         }
+    }
+
+    function applyResearchR2(r2Full, r2Red, u, w) {
+        if (r2Full !== null) { var el = document.getElementById('ss-cr-r2full'); if (el) el.value = r2Full; }
+        if (r2Red !== null) { var el2 = document.getElementById('ss-cr-r2reduced'); if (el2) el2.value = r2Red; }
+        if (u !== null) { var el3 = document.getElementById('ss-cr-u'); if (el3) el3.value = u; }
+        if (w !== null) { var el4 = document.getElementById('ss-cr-w'); if (el4) el4.value = w; }
+        // Visual feedback
+        var inputs = ['ss-cr-r2full','ss-cr-r2reduced','ss-cr-u','ss-cr-w'];
+        inputs.forEach(function(id) {
+            var el5 = document.getElementById(id);
+            if (el5) {
+                el5.style.transition = 'background 0.3s';
+                el5.style.background = '#d1fae5';
+                setTimeout(function() { el5.style.background = ''; }, 2000);
+            }
+        });
+        // Scroll to the form
+        var formEl = document.getElementById('ss-cr-r2full');
+        if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     // =========================================================================
