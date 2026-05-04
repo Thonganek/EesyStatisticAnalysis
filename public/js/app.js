@@ -493,6 +493,8 @@
             {id:'spa-lng-picker',filter:'numeric',label:'Longitude'},
             {id:'spa-val-picker',filter:'numeric',label:'Value (optional)'},
             {id:'spa-label-picker',filter:'all',label:'Label (optional)'},
+            {id:'spa-group-picker',filter:'all',label:'Group/Category (optional)'},
+            {id:'spa-size-picker',filter:'numeric',label:'Size Variable (optional)'},
         ];
         pickerConfigs.forEach(function(cfg) {
             var el = document.getElementById(cfg.id);
@@ -6599,6 +6601,8 @@
         if (!latName || !lngName) { alert('กรุณาเลือก Latitude และ Longitude Variable'); return; }
         var valName = (getCheckedVars('spa-val-picker') || [])[0] || null;
         var labelName = (getCheckedVars('spa-label-picker') || [])[0] || null;
+        var groupName = (getCheckedVars('spa-group-picker') || [])[0] || null;
+        var sizeName = (getCheckedVars('spa-size-picker') || [])[0] || null;
 
         var points = [];
         state.data.forEach(function(row) {
@@ -6608,7 +6612,10 @@
             var val = valName ? parseFloat(row[valName]) : 1;
             if (isNaN(val)) val = 1;
             var label = labelName ? String(row[labelName] || '') : '';
-            points.push({lat: lat, lng: lng, val: val, label: label});
+            var group = groupName ? String(row[groupName] || 'N/A') : null;
+            var size = sizeName ? parseFloat(row[sizeName]) : null;
+            if (sizeName && isNaN(size)) size = null;
+            points.push({lat: lat, lng: lng, val: val, label: label, group: group, size: size});
         });
 
         if (points.length === 0) { alert('ไม่พบข้อมูลพิกัดที่ valid'); return; }
@@ -6656,10 +6663,25 @@
             statRows.push({Statistic: 'Value Max', Value: fmt(Math.max.apply(null,vals))});
         }
 
+        var extras = [];
+
+        // Group summary table
+        if (groupName) {
+            var groupMap = {};
+            points.forEach(function(p) {
+                if (!groupMap[p.group]) groupMap[p.group] = 0;
+                groupMap[p.group]++;
+            });
+            var groupRows = Object.keys(groupMap).sort().map(function(g) {
+                return {Group: g, N: groupMap[g], '%': fmt(groupMap[g] / n * 100, 1)};
+            });
+            extras.push({title: 'Points by Group (' + groupName + ')', data: groupRows});
+        }
+
         state.results['spa'] = {
             data: statRows,
             title: 'Spatial Analysis: N=' + n + ' points',
-            extras: [],
+            extras: extras,
             _spatialPoints: points,
             _centLat: centLat,
             _centLng: centLng,
@@ -6706,20 +6728,61 @@
         });
 
         if (mode === 'markers' || mode === 'both') {
+            // Build group → color map
+            var groupColors = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#6366f1','#a855f7','#ec4899','#14b8a6','#f43f5e'];
+            var groupList = [];
             points.forEach(function(p) {
+                if (p.group && groupList.indexOf(p.group) < 0) groupList.push(p.group);
+            });
+            groupList.sort();
+            var groupColorMap = {};
+            groupList.forEach(function(g, i) { groupColorMap[g] = groupColors[i % groupColors.length]; });
+
+            // Size normalization (8–28px scale)
+            var sizeVals = points.map(function(p){ return p.size; }).filter(function(v){ return v !== null && isFinite(v); });
+            var sizeMin = sizeVals.length ? Math.min.apply(null, sizeVals) : 0;
+            var sizeMax = sizeVals.length ? Math.max.apply(null, sizeVals) : 1;
+            var sizeRange = sizeMax - sizeMin || 1;
+
+            // Legend for groups
+            if (groupList.length > 0) {
+                var legend = document.createElement('div');
+                legend.style.cssText = 'position:absolute;bottom:30px;left:10px;background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.3);font-size:12px;z-index:5;max-width:180px';
+                var legendHtml = '<strong style="display:block;margin-bottom:4px">กลุ่ม</strong>';
+                groupList.forEach(function(g) {
+                    legendHtml += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="width:12px;height:12px;border-radius:50%;background:' + groupColorMap[g] + ';display:inline-block;flex-shrink:0"></span>' + g + '</div>';
+                });
+                legend.innerHTML = legendHtml;
+                mapDiv.style.position = 'relative';
+                mapDiv.appendChild(legend);
+            }
+
+            points.forEach(function(p) {
+                var color = (p.group && groupColorMap[p.group]) ? groupColorMap[p.group] : '#ef4444';
+                var scale = 8;
+                if (p.size !== null && isFinite(p.size)) {
+                    scale = 8 + ((p.size - sizeMin) / sizeRange) * 20;
+                }
                 var marker = new google.maps.Marker({
                     position: {lat: p.lat, lng: p.lng},
                     map: map,
-                    title: p.label || ('(' + p.lat.toFixed(4) + ', ' + p.lng.toFixed(4) + ')')
+                    title: p.label || ('(' + p.lat.toFixed(4) + ', ' + p.lng.toFixed(4) + ')'),
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: scale,
+                        fillColor: color,
+                        fillOpacity: 0.85,
+                        strokeColor: '#fff',
+                        strokeWeight: 1.5
+                    }
                 });
-                if (p.label) {
-                    var infoWindow = new google.maps.InfoWindow({
-                        content: '<div style="font-size:13px;padding:4px"><strong>' + p.label + '</strong><br>Lat: ' + p.lat.toFixed(5) + '<br>Lng: ' + p.lng.toFixed(5) + '</div>'
-                    });
-                    marker.addListener('click', function() {
-                        infoWindow.open(map, marker);
-                    });
-                }
+                var infoContent = '<div style="font-size:13px;padding:4px">';
+                if (p.label) infoContent += '<strong>' + p.label + '</strong><br>';
+                if (p.group) infoContent += 'กลุ่ม: ' + p.group + '<br>';
+                if (p.size !== null) infoContent += 'ขนาด: ' + p.size + '<br>';
+                infoContent += 'Lat: ' + p.lat.toFixed(5) + '<br>Lng: ' + p.lng.toFixed(5) + '</div>';
+                var infoWindow = new google.maps.InfoWindow({content: infoContent});
+                marker.addListener('click', function() { infoWindow.open(map, marker); });
             });
         }
 
