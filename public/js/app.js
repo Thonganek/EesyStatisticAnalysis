@@ -865,9 +865,14 @@
         return values;
     }
 
-    function getListwiseRows(vars) {
+    function getListwiseRows(vars, numericVars) {
+        var numericMap = {};
+        (numericVars || vars || []).forEach(function (v) { numericMap[v] = true; });
         return (state.data || []).filter(function (row) {
             return vars.every(function (v) {
+                if (!numericMap[v]) {
+                    return row[v] !== null && row[v] !== undefined && row[v] !== '';
+                }
                 var val = parseFloat(row[v]);
                 return !isNaN(val) && isFinite(val);
             });
@@ -1555,7 +1560,7 @@
                     // Calculate group S.D. from raw data
                     var allGroupVals = [];
                     group.vars.forEach(function(v) { allGroupVals = allGroupVals.concat(getColumnData(v, true)); });
-                    var gSD = allGroupVals.length > 0 ? jStat.stdev(allGroupVals, true) : 0;
+                    var gSD = allGroupVals.length > 0 ? jStat.stdev(allGroupVals) : 0;
                     var gInterp = _interpretMean(gMean);
                     var subtotalRow = { 'No.': '', 'Variable': '  รวม ' + group.name };
                     for (var lv4 = scale; lv4 >= 1; lv4--) subtotalRow[String(lv4)] = '';
@@ -2212,7 +2217,7 @@
     }
 
     // =========================================================================
-    // Two-way ANOVA (simplified - using cell means approach)
+    // Two-way ANOVA
     // =========================================================================
 
     function runTwowayAnova() {
@@ -2221,65 +2226,30 @@
         var iv2 = getPickerValue('tw-iv2-picker', 'tw-iv2');
         if (!dv || !iv1 || !iv2) { alert('Please select DV and both Factors.'); return; }
 
-        // Group data by factor combinations
-        var cells = {};
-        var levels1 = [], levels2 = [];
-        var l1Set = {}, l2Set = {};
+        var twRows = getListwiseRows([dv, iv1, iv2], [dv]);
+        var y = twRows.map(function(r){return parseFloat(r[dv]);});
+        var f1 = twRows.map(function(r){return r[iv1];});
+        var f2 = twRows.map(function(r){return r[iv2];});
+        var result = Stats.twoWayAnova(y, f1, f2);
+        if (!result) { alert('Could not compute Two-way ANOVA. Check your data.'); return; }
 
-        state.data.forEach(function (row) {
-            var val = parseFloat(row[dv]);
-            if (isNaN(val)) return;
-            var f1 = String(row[iv1]);
-            var f2 = String(row[iv2]);
-            if (!l1Set[f1]) { l1Set[f1] = true; levels1.push(f1); }
-            if (!l2Set[f2]) { l2Set[f2] = true; levels2.push(f2); }
-            var key = f1 + '|' + f2;
-            if (!cells[key]) cells[key] = [];
-            cells[key].push(val);
+        var mainRows = result.rows.map(function(r) {
+            return { Source: r.source.replace('Factor A', iv1).replace('Factor B', iv2).replace('A x B', iv1 + ' x ' + iv2),
+                SS: fmt(r.ss), df: r.df, MS: fmt(r.ms), F: fmt(r.f), 'p-value': Stats.formatPValue(r.p) };
         });
+        var extras = [{
+            title: 'Cell Descriptives',
+            data: result.descriptives.map(function(d) {
+                return { [iv1]: d.factorA, [iv2]: d.factorB, N: d.n, Mean: fmt(d.mean), 'S.D.': fmt(d.sd) };
+            })
+        }];
 
-        // For a simplified two-way, just run one-way on each factor separately
-        // Full factorial ANOVA is complex; provide main effects
-        var split1 = splitByGroup(dv, iv1);
-        var groups1 = split1.groupNames.map(function (g) { return split1.groups[g]; });
-        var result1 = Stats.onewayAnova(groups1, split1.groupNames);
-
-        var split2 = splitByGroup(dv, iv2);
-        var groups2 = split2.groupNames.map(function (g) { return split2.groups[g]; });
-        var result2 = Stats.onewayAnova(groups2, split2.groupNames);
-
-        var mainRows = [];
-        if (result1) {
-            mainRows.push({ Source: iv1 + ' (Main Effect)', SS: fmt(result1.ssBetween), df: result1.dfBetween, MS: fmt(result1.msBetween), F: fmt(result1.f), 'p-value': Stats.formatPValue(result1.p) });
-        }
-        if (result2) {
-            mainRows.push({ Source: iv2 + ' (Main Effect)', SS: fmt(result2.ssBetween), df: result2.dfBetween, MS: fmt(result2.msBetween), F: fmt(result2.f), 'p-value': Stats.formatPValue(result2.p) });
-        }
-
-        var extras = [];
-        if (result1 && result1.descriptives) {
-            extras.push({
-                title: 'Descriptives by ' + iv1,
-                data: result1.descriptives.map(function (d) {
-                    return { Group: d.group, N: d.n, Mean: fmt(d.mean), 'S.D.': fmt(d.sd) };
-                })
-            });
-        }
-        if (result2 && result2.descriptives) {
-            extras.push({
-                title: 'Descriptives by ' + iv2,
-                data: result2.descriptives.map(function (d) {
-                    return { Group: d.group, N: d.n, Mean: fmt(d.mean), 'S.D.': fmt(d.sd) };
-                })
-            });
-        }
-
-        state.results['tw'] = { data: mainRows, title: 'Two-way ANOVA (Main Effects)', extras: extras };
+        state.results['tw'] = { data: mainRows, title: 'Two-way ANOVA (Main Effects + Interaction)', extras: extras };
         displayResults('tw');
     }
 
     // =========================================================================
-    // Repeated Measures ANOVA (simplified via Friedman approach)
+    // Repeated Measures ANOVA
     // =========================================================================
 
     function runRmAnova() {
@@ -2287,34 +2257,37 @@
         if (vars.length === 0) vars = getSelected('rm-vars');
         if (vars.length < 2) { alert('Please select at least 2 variables.'); return; }
 
-        // Treat as one-way with repeated measures
-        // Use each variable as a "condition"
-        var groups = vars.map(function (v) { return getColumnData(v, true); });
-        var n = Math.min.apply(null, groups.map(function (g) { return g.length; }));
-        groups = groups.map(function (g) { return g.slice(0, n); });
-
-        // Use Friedman as non-parametric RM equivalent
-        var fr = Stats.friedmanTest(groups);
+        var rmRows = getListwiseRows(vars);
+        var groups = vars.map(function (v) { return rmRows.map(function(r){return parseFloat(r[v]);}); });
+        var rm = Stats.repeatedMeasuresAnova(groups, vars);
+        if (!rm) { alert('Could not compute Repeated Measures ANOVA. Check your data.'); return; }
 
         // Also provide descriptives
         var extras = [];
-        var descRows = vars.map(function (v, i) {
-            var d = Stats.descriptive(groups[i]);
-            return d ? { Variable: v, N: d.n, Mean: fmt(d.mean), 'S.D.': fmt(d.sd), 'S.E.': fmt(d.se) } : null;
-        }).filter(Boolean);
+        var descRows = rm.descriptives.map(function (d) {
+            return { Variable: d.variable, N: d.n, Mean: fmt(d.mean), 'S.D.': fmt(d.sd), 'S.E.': fmt(d.se) };
+        });
         extras.push({ title: 'Descriptive Statistics', data: descRows });
 
-        var mainRows = [];
-        if (fr) {
-            mainRows.push({
-                'Chi-Square': fmt(fr.chiSquare),
-                df: fr.df,
-                'p-value': Stats.formatPValue(fr.p),
-                "Kendall's W": fmt(fr.kendallW)
-            });
-        }
+        var mainRows = [{
+            Source: 'Condition',
+            SS: fmt(rm.ssCondition),
+            df: rm.dfCondition,
+            MS: fmt(rm.msCondition),
+            F: fmt(rm.f),
+            'p-value': Stats.formatPValue(rm.p),
+            'Partial Eta²': fmt(rm.partialEtaSquared)
+        }, {
+            Source: 'Error',
+            SS: fmt(rm.ssError),
+            df: rm.dfError,
+            MS: fmt(rm.msError),
+            F: '',
+            'p-value': '',
+            'Partial Eta²': ''
+        }];
 
-        state.results['rm'] = { data: mainRows, title: 'Repeated Measures Analysis', extras: extras };
+        state.results['rm'] = { data: mainRows, title: 'Repeated Measures ANOVA', extras: extras };
         displayResults('rm');
     }
 
@@ -2669,8 +2642,9 @@
         if (!var1 || !var2) { alert('Please select both variables.'); return; }
         var alpha = parseFloat(getSelectValue('chi-alpha')) || 0.05;
 
-        var v1 = getColumnData(var1, false);
-        var v2 = getColumnData(var2, false);
+        var chiRows = getListwiseRows([var1, var2], []);
+        var v1 = chiRows.map(function(r){return r[var1];});
+        var v2 = chiRows.map(function(r){return r[var2];});
 
         // Filter to rows where both are present
         var pairs = [];
@@ -3278,6 +3252,7 @@
         var names = ['(Intercept)'].concat(ivs);
         var result = Stats.logisticRegression(yData, xData, names);
         if (!result) { alert('Could not compute logistic regression. Check your data.'); return; }
+        var yBinary = result.encodedY || yData.map(function(v){return v>=0.5?1:0;});
 
         // Method label
         var methodLabels = {
@@ -3317,25 +3292,26 @@
                 'Description': methodDescs[method] || method,
                 'DV': dv,
                 'IVs': ivs.join(', '),
-                'N': yData.length,
-                'N (Event=1)': yData.filter(function(v){return v>=0.5;}).length,
-                'N (Event=0)': yData.filter(function(v){return v<0.5;}).length,
+                'N': yBinary.length,
+                'N (Event=1)': yBinary.filter(function(v){return v===1;}).length,
+                'N (Event=0)': yBinary.filter(function(v){return v===0;}).length,
                 'Convergence': result.converged !== false ? 'Yes' : 'No',
                 'Iterations': result.iterations || 'N/A'
             }]
         });
 
         // 2. Model Summary
-        var n = yData.length;
-        var n1 = yData.filter(function(v){return v>=0.5;}).length;
+        var n = yBinary.length;
+        var n1 = yBinary.filter(function(v){return v===1;}).length;
         var n0 = n - n1;
-        var nullLL = n1 * Math.log(n1/n) + n0 * Math.log(n0/n);
-        var modelLL = result.logLikelihood || (result.aic ? -(result.aic/2 - ivs.length - 1) : nullLL);
+        var nullLL = result.nullLogLikelihood;
+        if (!isFinite(nullLL)) nullLL = n1 > 0 && n0 > 0 ? n1 * Math.log(n1/n) + n0 * Math.log(n0/n) : NaN;
+        var modelLL = isFinite(result.logLikelihood) ? result.logLikelihood : (result.aic ? -(result.aic/2 - ivs.length - 1) : nullLL);
         var chiSq = -2 * (nullLL - modelLL);
         var dfChi = ivs.length;
-        var pChi = chiSq > 0 ? (1 - jStat.chisquare.cdf(chiSq, dfChi)) : 1;
-        var coxSnell = 1 - Math.exp(-chiSq / n);
-        var nagelkerke = coxSnell > 0 ? coxSnell / (1 - Math.exp(2 * nullLL / n)) : 0;
+        var pChi = isFinite(chiSq) && chiSq > 0 ? (1 - jStat.chisquare.cdf(chiSq, dfChi)) : 1;
+        var coxSnell = isFinite(chiSq) ? 1 - Math.exp(-chiSq / n) : NaN;
+        var nagelkerke = coxSnell > 0 && isFinite(nullLL) ? coxSnell / (1 - Math.exp(2 * nullLL / n)) : NaN;
 
         extras.push({
             title: 'Model Summary',
@@ -3365,12 +3341,14 @@
         // 4. Classification Table
         if (logrOpts.classification) {
             var tp=0,tn=0,fp=0,fn=0;
-            yData.forEach(function(y,i) {
-                var pred = result.coefficients[0].b;
-                xData.forEach(function(xd,j) { pred += result.coefficients[j+1].b * xd[i]; });
-                var prob = 1 / (1 + Math.exp(-pred));
+            yBinary.forEach(function(y,i) {
+                var prob = result.probabilities ? result.probabilities[i] : (function() {
+                    var pred = result.coefficients[0].b;
+                    xData.forEach(function(xd,j) { pred += result.coefficients[j+1].b * xd[i]; });
+                    return 1 / (1 + Math.exp(-pred));
+                })();
                 var predClass = prob >= 0.5 ? 1 : 0;
-                var actual = y >= 0.5 ? 1 : 0;
+                var actual = y;
                 if (actual===1 && predClass===1) tp++;
                 else if (actual===0 && predClass===0) tn++;
                 else if (actual===0 && predClass===1) fp++;
@@ -3447,7 +3425,7 @@
 
         // 7. Diagnostic Warnings for Logistic Regression
         var logrWarnings = [];
-        var nEvents = yData.filter(function(v){return v>=0.5;}).length;
+        var nEvents = yBinary.filter(function(v){return v===1;}).length;
         var nNonEvents = n - nEvents;
         var epp = Math.min(nEvents, nNonEvents) / ivs.length; // events per predictor
         if (epp < 10) logrWarnings.push({'ประเด็น': 'Events Per Predictor (EPP) ต่ำ', 'รายละเอียด': 'EPP = ' + fmt(epp,1) + ' (แนะนำ >= 10)', 'ระดับ': '🔴 สำคัญ', 'คำแนะนำ': 'ผลอาจไม่เสถียร ควรเพิ่มขนาดตัวอย่าง หรือลดจำนวนตัวแปรอิสระ'});
@@ -3644,8 +3622,9 @@
         var var2 = getPickerValue('cd-or-var2-picker', 'cd-or-var2');
         if (!var1 || !var2) { alert('Please select both variables.'); return; }
 
-        var v1 = getColumnData(var1, false);
-        var v2 = getColumnData(var2, false);
+        var orRows = getListwiseRows([var1, var2], []);
+        var v1 = orRows.map(function(r){return r[var1];});
+        var v2 = orRows.map(function(r){return r[var2];});
 
         // Build 2x2 contingency table
         var cats1 = [], cats2 = [];
@@ -3949,7 +3928,8 @@
         var vars = getCheckedVars('vifp-picker');
         if (vars.length < 2) { alert('กรุณาเลือกตัวแปรอย่างน้อย 2 ตัว'); return; }
 
-        var dataArrays = vars.map(function(v) { return getColumnData(v, true); });
+        var vifRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function(v) { return vifRows.map(function(r) { return parseFloat(r[v]); }); });
         var result = Stats.vif(dataArrays, vars);
         if (!result) { alert('ไม่สามารถคำนวณ VIF ได้'); return; }
 
@@ -4051,8 +4031,11 @@
         var ctrlVars = getCheckedVars('pcor-ctrl-picker');
         if (!xVar || !yVar) { alert('กรุณาเลือก X และ Y'); return; }
 
-        var x = getColumnData(xVar,true), y = getColumnData(yVar,true);
-        var controls = ctrlVars.map(function(v){return getColumnData(v,true);});
+        var allVars = [xVar, yVar].concat(ctrlVars);
+        var pcorRows = getListwiseRows(allVars);
+        var x = pcorRows.map(function(r){return parseFloat(r[xVar]);});
+        var y = pcorRows.map(function(r){return parseFloat(r[yVar]);});
+        var controls = ctrlVars.map(function(v){return pcorRows.map(function(r){return parseFloat(r[v]);});});
 
         var zeroOrder = Stats.correlation([x,y],[xVar,yVar],'pearson');
         var result = Stats.partialCorrelation(x,y,controls.length>0?controls:null);
@@ -4088,11 +4071,13 @@
         var b2Vars = getCheckedVars('hreg-b2-picker');
         if (!dv || b1Vars.length===0) { alert('กรุณาเลือก DV และ Block 1'); return; }
 
-        var y = getColumnData(dv,true);
-        var blocks = [b1Vars.map(function(v){return getColumnData(v,true);})];
+        var hregAllVars = [dv].concat(b1Vars).concat(b2Vars);
+        var hregRows = getListwiseRows(hregAllVars);
+        var y = hregRows.map(function(r){return parseFloat(r[dv]);});
+        var blocks = [b1Vars.map(function(v){return hregRows.map(function(r){return parseFloat(r[v]);});})];
         var names = [b1Vars];
         if (b2Vars.length > 0) {
-            blocks.push(b2Vars.map(function(v){return getColumnData(v,true);}));
+            blocks.push(b2Vars.map(function(v){return hregRows.map(function(r){return parseFloat(r[v]);});}));
             names.push(b2Vars);
         }
 
@@ -4187,10 +4172,9 @@
         var predVar = getPickerValue('roc-pred-picker','roc-pred');
         if (!actualVar || !predVar) { alert('กรุณาเลือก Actual และ Predicted'); return; }
 
-        var actual = getColumnData(actualVar,true).map(function(v){return v>=0.5?1:0;});
-        var predicted = getColumnData(predVar,true);
-        var n = Math.min(actual.length,predicted.length);
-        actual=actual.slice(0,n); predicted=predicted.slice(0,n);
+        var rocRows = getListwiseRows([actualVar, predVar]);
+        var actual = rocRows.map(function(r){return parseFloat(r[actualVar])>=0.5?1:0;});
+        var predicted = rocRows.map(function(r){return parseFloat(r[predVar]);});
 
         var result = Stats.roc(actual,predicted);
         if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
@@ -4229,7 +4213,8 @@
     function runICC() {
         var vars = getCheckedVars('icc-picker');
         if (vars.length < 2) { alert('กรุณาเลือกตัวแปรอย่างน้อย 2 ตัว'); return; }
-        var dataArrays = vars.map(function(v){return getColumnData(v,true);});
+        var iccRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function(v){return iccRows.map(function(r){return parseFloat(r[v]);});});
         var result = Stats.icc(dataArrays);
         if (!result) { alert('ไม่สามารถคำนวณ ICC ได้'); return; }
 
@@ -4252,7 +4237,8 @@
     function runSplitHalf() {
         var vars = getCheckedVars('sh-picker');
         if (vars.length < 2) { alert('กรุณาเลือกอย่างน้อย 2 Items'); return; }
-        var dataArrays = vars.map(function(v){return getColumnData(v,true);});
+        var shRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function(v){return shRows.map(function(r){return parseFloat(r[v]);});});
         var result = Stats.splitHalf(dataArrays);
         if (!result) { alert('ไม่สามารถคำนวณได้'); return; }
 
@@ -4274,11 +4260,11 @@
         var afterVar = getPickerValue('mcn-after-picker','mcn-after');
         if (!beforeVar || !afterVar) { alert('กรุณาเลือกตัวแปร Before และ After'); return; }
 
-        var before = getColumnData(beforeVar,true).map(function(v){return v>=0.5?1:0;});
-        var after = getColumnData(afterVar,true).map(function(v){return v>=0.5?1:0;});
-        var n = Math.min(before.length,after.length);
+        var mcnRows = getListwiseRows([beforeVar, afterVar]);
+        var before = mcnRows.map(function(r){return parseFloat(r[beforeVar])>=0.5?1:0;});
+        var after = mcnRows.map(function(r){return parseFloat(r[afterVar])>=0.5?1:0;});
 
-        var result = Stats.mcnemar(before.slice(0,n), after.slice(0,n));
+        var result = Stats.mcnemar(before, after);
         if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
 
         var extras = [{title:'2x2 Contingency Table',data:[
@@ -4331,7 +4317,8 @@
     function runCochranQ() {
         var vars = getCheckedVars('cq-picker');
         if (vars.length < 3) { alert('กรุณาเลือกอย่างน้อย 3 ตัวแปร'); return; }
-        var dataArrays = vars.map(function(v){return getColumnData(v,true).map(function(x){return x>=0.5?1:0;});});
+        var cqRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function(v){return cqRows.map(function(r){return parseFloat(r[v])>=0.5?1:0;});});
         var result = Stats.cochranQ(dataArrays);
         if (!result) { alert('ไม่สามารถคำนวณได้'); return; }
 
@@ -4447,7 +4434,8 @@
         var vars=getCheckedVars('cls-picker');
         if(vars.length<2){alert('กรุณาเลือกตัวแปรอย่างน้อย 2 ตัว');return;}
         var k=parseInt(document.getElementById('cls-k').value)||3;
-        var dataArrays=vars.map(function(v){return getColumnData(v,true);});
+        var clsRows=getListwiseRows(vars);
+        var dataArrays=vars.map(function(v){return clsRows.map(function(r){return parseFloat(r[v]);});});
         var result=Stats.kMeans(dataArrays,vars,k);
         if(!result){alert('ไม่สามารถวิเคราะห์ได้');return;}
         var rows=result.clusters.map(function(c){
@@ -4464,8 +4452,9 @@
         var groupVar=getPickerValue('da-group-picker','da-group');
         var predVars=getCheckedVars('da-vars-picker');
         if(!groupVar||predVars.length<1){alert('กรุณาเลือก Grouping Variable และ Predictors');return;}
-        var groupData=state.data.map(function(r){return r[groupVar];});
-        var dataArrays=predVars.map(function(v){return getColumnData(v,true);});
+        var daRows=getListwiseRows([groupVar].concat(predVars), predVars);
+        var groupData=daRows.map(function(r){return r[groupVar];});
+        var dataArrays=predVars.map(function(v){return daRows.map(function(r){return parseFloat(r[v]);});});
         var result=Stats.discriminantAnalysis(dataArrays,predVars,groupData);
         if(!result||result.error){alert(result?result.error:'ไม่สามารถวิเคราะห์ได้');return;}
         var extras=[];
@@ -5076,10 +5065,9 @@
         var eventVar = getPickerValue('surv-event-picker','surv-event');
         if (!timeVar || !eventVar) { alert('กรุณาเลือก Time และ Event variables'); return; }
 
-        var time = getColumnData(timeVar, true);
-        var event = getColumnData(eventVar, true).map(function(v){return v>=0.5?1:0;});
-        var n = Math.min(time.length, event.length);
-        time = time.slice(0,n); event = event.slice(0,n);
+        var survRows = getListwiseRows([timeVar, eventVar]);
+        var time = survRows.map(function(r){return parseFloat(r[timeVar]);});
+        var event = survRows.map(function(r){return parseFloat(r[eventVar])>=0.5?1:0;});
 
         var km = Stats.kaplanMeier(time, event);
         if (!km) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
@@ -5108,9 +5096,14 @@
         var groupVar = getPickerValue('surv-group-picker','surv-group');
         var mainRows = [];
         if (groupVar) {
-            var groupData = state.data.map(function(r){return r[groupVar];});
+            var groupRows = getListwiseRows([timeVar, eventVar, groupVar], [timeVar, eventVar]);
             var groups = {};
-            groupData.forEach(function(g,i){if(i<n){if(!groups[g])groups[g]={t:[],e:[]};groups[g].t.push(time[i]);groups[g].e.push(event[i]);}});
+            groupRows.forEach(function(r){
+                var g = String(r[groupVar]);
+                if(!groups[g]) groups[g] = {t:[], e:[]};
+                groups[g].t.push(parseFloat(r[timeVar]));
+                groups[g].e.push(parseFloat(r[eventVar])>=0.5?1:0);
+            });
             var gNames = Object.keys(groups);
             if (gNames.length === 2) {
                 var lr = Stats.logRankTest(groups[gNames[0]].t, groups[gNames[0]].e, groups[gNames[1]].t, groups[gNames[1]].e);
@@ -5127,13 +5120,16 @@
         // Cox regression if covariates selected
         var covVars = getCheckedVars('surv-cov-picker');
         if (covVars.length > 0) {
-            var covData = covVars.map(function(v){return getColumnData(v,true).slice(0,n);});
-            var cox = Stats.coxRegression(time, event, covData, covVars);
+            var coxRows = getListwiseRows([timeVar, eventVar].concat(covVars));
+            var coxTime = coxRows.map(function(r){return parseFloat(r[timeVar]);});
+            var coxEvent = coxRows.map(function(r){return parseFloat(r[eventVar])>=0.5?1:0;});
+            var covData = covVars.map(function(v){return coxRows.map(function(r){return parseFloat(r[v]);});});
+            var cox = Stats.coxRegression(coxTime, coxEvent, covData, covVars);
             if (cox && cox.coefficients) {
-                var coxRows = cox.coefficients.map(function(c){
+                var coxCoefRows = cox.coefficients.map(function(c){
                     return {Variable:c.variable, B:fmt(c.b), 'S.E.':fmt(c.se), 'HR':fmt(c.hr), '95% CI (HR)':c.hrCI, Wald:fmt(c.wald), 'p-value':Stats.formatPValue(c.p), 'Sig.':c.significant?'✓':''};
                 });
-                extras.push({title:'Cox Regression', data:coxRows});
+                extras.push({title:'Cox Regression', data:coxCoefRows});
             }
         }
 
@@ -5599,7 +5595,7 @@
         var n = values.length;
         if (n < 2) { alert('ข้อมูลไม่เพียงพอ'); return; }
         var mean = jStat.mean(values);
-        var sd = jStat.stdev(values, true);
+        var sd = jStat.stdev(values);
         var se = sd / Math.sqrt(n);
         var t = (mean - testVal) / se;
         var df = n - 1;

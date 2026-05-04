@@ -1923,7 +1923,7 @@
                 var mj = groups[j].reduce(function(a,b){return a+b;},0) / nj;
                 var diff = mi - mj;
                 var fStat = (diff * diff) / (msW * (1/ni + 1/nj)) / dfB;
-                var p = 1 - jStat.centralF.cdf(fStat * dfB, dfB, dfW);
+                var p = 1 - jStat.centralF.cdf(fStat, dfB, dfW);
                 pairs.push({
                     groupA: groupNames[i], groupB: groupNames[j],
                     meanA: mi, meanB: mj, meanDiff: diff,
