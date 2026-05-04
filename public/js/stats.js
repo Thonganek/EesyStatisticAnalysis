@@ -18,6 +18,35 @@
         return arr.filter(function (v) { return v !== null && v !== undefined && !isNaN(v) && isFinite(v); }).map(Number);
     }
 
+    function listwiseNumeric(y, xs) {
+        if (!Array.isArray(y) || !Array.isArray(xs)) return null;
+        var rowsY = [], rowsX = xs.map(function () { return []; });
+        for (var i = 0; i < y.length; i++) {
+            var yy = Number(y[i]);
+            if (!isFinite(yy)) continue;
+            var vals = [];
+            var ok = true;
+            for (var j = 0; j < xs.length; j++) {
+                var xx = Number(xs[j] ? xs[j][i] : NaN);
+                if (!isFinite(xx)) { ok = false; break; }
+                vals.push(xx);
+            }
+            if (!ok) continue;
+            rowsY.push(yy);
+            for (var j = 0; j < xs.length; j++) rowsX[j].push(vals[j]);
+        }
+        return { y: rowsY, xs: rowsX };
+    }
+
+    function regressionNames(varNames, p) {
+        var defaults = ["(Intercept)"];
+        for (var i = 0; i < p; i++) defaults.push("X" + (i + 1));
+        if (!Array.isArray(varNames) || varNames.length === 0) return defaults;
+        if (varNames.length === p + 1) return varNames;
+        if (varNames.length === p) return ["(Intercept)"].concat(varNames);
+        return defaults;
+    }
+
     function sum(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s; }
     function mean(a) { return a.length === 0 ? NaN : sum(a) / a.length; }
     function variance(a, m) {
@@ -985,12 +1014,15 @@
     // =========================================================================
 
     function linearRegression(y, xs, varNames) {
-        var yClean = clean(y);
-        if (yClean.length < 3 || !Array.isArray(xs) || xs.length < 1) return null;
+        if (!Array.isArray(xs) || xs.length < 1) return null;
+        var lw = listwiseNumeric(y, xs);
+        if (!lw || lw.y.length < 3) return null;
 
+        var yClean = lw.y;
+        xs = lw.xs;
         var n = yClean.length;
         var p = xs.length; // number of predictors
-        var names = varNames || ["(Intercept)"].concat(xs.map(function (_, i) { return "X" + (i + 1); }));
+        var names = regressionNames(varNames, p);
 
         // Build design matrix with intercept column
         var X = []; // n x (p+1)
@@ -1062,6 +1094,8 @@
         var rSquared = ssTotal > 0 ? ssReg / ssTotal : NaN;
         var adjRSquared = (n > p + 1 && ssTotal > 0) ? 1 - (1 - rSquared) * (n - 1) / (n - p - 1) : NaN;
         var r = !isNaN(rSquared) ? Math.sqrt(rSquared) : NaN;
+        var ySd = sd(yClean);
+        var xSds = xs.map(function (col) { return sd(col); });
 
         // Durbin-Watson
         var dw = 0, dwDen = 0;
@@ -1087,6 +1121,7 @@
             coefficients.push({
                 variable: names[i] || (i === 0 ? "(Intercept)" : "X" + i),
                 b: b[i], se: seBeta[i], t: tVal, p: pVal,
+                beta: i === 0 || ySd === 0 ? undefined : b[i] * xSds[i - 1] / ySd,
                 ci95Lo: ciLoReg,
                 ci95Hi: ciHiReg,
                 ci95: formatCI(ciLoReg, ciHiReg)
@@ -1097,6 +1132,9 @@
             r: r, rSquared: rSquared, adjRSquared: adjRSquared,
             f: fStat, fP: fP, durbinWatson: dw,
             coefficients: coefficients,
+            n: n,
+            residuals: residuals,
+            fitted: yhat,
             anova: { ssReg: ssReg, ssRes: ssRes, ssTotal: ssTotal, dfReg: dfReg, dfRes: dfRes, msReg: msReg, msRes: msRes }
         };
     }
@@ -1145,19 +1183,22 @@
     // =========================================================================
 
     function logisticRegression(y, xs, varNames) {
-        var yClean = clean(y);
-        if (yClean.length < 3 || !Array.isArray(xs) || xs.length < 1) return null;
+        if (!Array.isArray(xs) || xs.length < 1) return null;
+        var lw = listwiseNumeric(y, xs);
+        if (!lw || lw.y.length < 3) return null;
 
         // Encode DV as 0/1: sort unique values, map smallest→0, largest→1
+        var yOriginal = lw.y;
         var uniqueY = [];
-        yClean.forEach(function(v) { if (uniqueY.indexOf(v) < 0) uniqueY.push(v); });
+        yOriginal.forEach(function(v) { if (uniqueY.indexOf(v) < 0) uniqueY.push(v); });
         uniqueY.sort(function(a, b) { return a - b; });
         if (uniqueY.length !== 2) return null; // DV must be binary
-        yClean = yClean.map(function(v) { return v === uniqueY[1] ? 1 : 0; });
+        var yClean = yOriginal.map(function(v) { return v === uniqueY[1] ? 1 : 0; });
+        xs = lw.xs;
 
         var n = yClean.length;
         var p = xs.length;
-        var names = varNames || ["(Intercept)"].concat(xs.map(function (_, i) { return "X" + (i + 1); }));
+        var names = regressionNames(varNames, p);
 
         // Build design matrix
         var X = [];
@@ -1231,14 +1272,17 @@
 
             if (maxDelta < 1e-8) { converged = true; break; }
         }
+        var iterations = Math.min(iter + 1, maxIter);
 
         // Final probabilities and log-likelihood
         var logLik = 0;
         var correct = 0;
+        var probabilities = [];
         for (var i = 0; i < n; i++) {
             var z = 0;
             for (var j = 0; j < cols; j++) z += X[i][j] * beta[j];
             var pi = sigmoid(z);
+            probabilities.push(pi);
             var pred = pi >= 0.5 ? 1 : 0;
             if (pred === yClean[i]) correct++;
             logLik += yClean[i] * Math.log(Math.max(pi, 1e-15)) + (1 - yClean[i]) * Math.log(Math.max(1 - pi, 1e-15));
@@ -1246,6 +1290,11 @@
 
         var accuracy = correct / n;
         var aic = -2 * logLik + 2 * cols;
+        var n1 = yClean.filter(function(v) { return v === 1; }).length;
+        var n0 = n - n1;
+        var nullLogLik = n1 > 0 && n0 > 0 ?
+            n1 * Math.log(n1 / n) + n0 * Math.log(n0 / n) :
+            NaN;
 
         // Standard errors from final Hessian
         var prob2 = new Array(n);
@@ -1282,7 +1331,17 @@
         return {
             coefficients: coefficients,
             accuracy: accuracy,
-            aic: aic
+            aic: aic,
+            logLikelihood: logLik,
+            nullLogLikelihood: nullLogLik,
+            converged: converged,
+            iterations: iterations,
+            n: n,
+            encodedY: yClean,
+            originalY: yOriginal,
+            eventValue: uniqueY[1],
+            nonEventValue: uniqueY[0],
+            probabilities: probabilities
         };
     }
 
@@ -1534,6 +1593,185 @@
     }
 
     // =========================================================================
+    // Two-way ANOVA
+    // =========================================================================
+
+    function twoWayAnova(y, factorA, factorB) {
+        if (!Array.isArray(y) || !Array.isArray(factorA) || !Array.isArray(factorB)) return null;
+        var rows = [];
+        var aMap = {}, bMap = {}, aLevels = [], bLevels = [];
+        var nRaw = Math.min(y.length, factorA.length, factorB.length);
+        for (var i = 0; i < nRaw; i++) {
+            var val = Number(y[i]);
+            if (!isFinite(val) || factorA[i] === null || factorA[i] === undefined || factorA[i] === "" ||
+                factorB[i] === null || factorB[i] === undefined || factorB[i] === "") continue;
+            var a = String(factorA[i]), b = String(factorB[i]);
+            if (!(a in aMap)) { aMap[a] = aLevels.length; aLevels.push(a); }
+            if (!(b in bMap)) { bMap[b] = bLevels.length; bLevels.push(b); }
+            rows.push({ y: val, a: a, b: b });
+        }
+        if (rows.length < 4 || aLevels.length < 2 || bLevels.length < 2) return null;
+
+        function design(includeA, includeB, includeInteraction) {
+            var cols = [];
+            var names = [];
+            if (includeA) {
+                for (var ai = 1; ai < aLevels.length; ai++) {
+                    (function(level) {
+                        cols.push(rows.map(function(r) { return r.a === level ? 1 : 0; }));
+                        names.push("A=" + level);
+                    })(aLevels[ai]);
+                }
+            }
+            if (includeB) {
+                for (var bi = 1; bi < bLevels.length; bi++) {
+                    (function(level) {
+                        cols.push(rows.map(function(r) { return r.b === level ? 1 : 0; }));
+                        names.push("B=" + level);
+                    })(bLevels[bi]);
+                }
+            }
+            if (includeInteraction) {
+                for (var ai2 = 1; ai2 < aLevels.length; ai2++) {
+                    for (var bi2 = 1; bi2 < bLevels.length; bi2++) {
+                        (function(aLevel, bLevel) {
+                            cols.push(rows.map(function(r) { return (r.a === aLevel && r.b === bLevel) ? 1 : 0; }));
+                            names.push("A=" + aLevel + ":B=" + bLevel);
+                        })(aLevels[ai2], bLevels[bi2]);
+                    }
+                }
+            }
+            return { xs: cols, names: names };
+        }
+
+        function fit(d) {
+            var yy = rows.map(function(r) { return r.y; });
+            return d.xs.length > 0 ? linearRegression(yy, d.xs, d.names) : (function() {
+                var m = mean(yy), sse = 0;
+                yy.forEach(function(v) { sse += (v - m) * (v - m); });
+                return { anova: { ssRes: sse, dfRes: yy.length - 1 } };
+            })();
+        }
+
+        var modelA = fit(design(true, false, false));
+        var modelB = fit(design(false, true, false));
+        var modelAB = fit(design(true, true, false));
+        var modelFull = fit(design(true, true, true));
+        if (!modelA || !modelB || !modelAB || !modelFull) return null;
+
+        var ssError = modelFull.anova.ssRes;
+        var dfError = modelFull.anova.dfRes;
+        var msError = dfError > 0 ? ssError / dfError : NaN;
+        var ssA = modelB.anova.ssRes - modelAB.anova.ssRes;
+        var ssB = modelA.anova.ssRes - modelAB.anova.ssRes;
+        var ssInt = modelAB.anova.ssRes - modelFull.anova.ssRes;
+        var dfA = aLevels.length - 1;
+        var dfB = bLevels.length - 1;
+        var dfInt = dfA * dfB;
+
+        function row(source, ss, df) {
+            ss = Math.max(0, ss);
+            var ms = df > 0 ? ss / df : NaN;
+            var f = msError > 0 ? ms / msError : NaN;
+            var p = isFinite(f) && df > 0 && dfError > 0 ? 1 - fCdf(f, df, dfError) : NaN;
+            return { source: source, ss: ss, df: df, ms: ms, f: f, p: p };
+        }
+
+        var cells = {};
+        rows.forEach(function(r) {
+            var key = r.a + "|" + r.b;
+            if (!cells[key]) cells[key] = { a: r.a, b: r.b, values: [] };
+            cells[key].values.push(r.y);
+        });
+        var descriptives = Object.keys(cells).map(function(key) {
+            var vals = cells[key].values;
+            return { factorA: cells[key].a, factorB: cells[key].b, n: vals.length, mean: mean(vals), sd: sd(vals) };
+        });
+
+        return {
+            n: rows.length,
+            factorA: aLevels,
+            factorB: bLevels,
+            rows: [row("Factor A", ssA, dfA), row("Factor B", ssB, dfB), row("A x B", ssInt, dfInt), row("Error", ssError, dfError)],
+            descriptives: descriptives
+        };
+    }
+
+    // =========================================================================
+    // Repeated Measures ANOVA
+    // =========================================================================
+
+    function repeatedMeasuresAnova(dataArrays, varNames) {
+        if (!Array.isArray(dataArrays) || dataArrays.length < 2) return null;
+        var k = dataArrays.length;
+        var rows = [];
+        var nRaw = Math.min.apply(null, dataArrays.map(function(a) { return Array.isArray(a) ? a.length : 0; }));
+        for (var i = 0; i < nRaw; i++) {
+            var row = [];
+            var ok = true;
+            for (var j = 0; j < k; j++) {
+                var v = Number(dataArrays[j][i]);
+                if (!isFinite(v)) { ok = false; break; }
+                row.push(v);
+            }
+            if (ok) rows.push(row);
+        }
+        var n = rows.length;
+        if (n < 2) return null;
+
+        var all = [];
+        rows.forEach(function(r) { all = all.concat(r); });
+        var grandMean = mean(all);
+        var conditionMeans = [];
+        for (var j = 0; j < k; j++) {
+            var col = rows.map(function(r) { return r[j]; });
+            conditionMeans.push(mean(col));
+        }
+        var subjectMeans = rows.map(function(r) { return mean(r); });
+
+        var ssTotal = 0;
+        all.forEach(function(v) { ssTotal += Math.pow(v - grandMean, 2); });
+        var ssCondition = 0;
+        conditionMeans.forEach(function(m) { ssCondition += n * Math.pow(m - grandMean, 2); });
+        var ssSubjects = 0;
+        subjectMeans.forEach(function(m) { ssSubjects += k * Math.pow(m - grandMean, 2); });
+        var ssError = ssTotal - ssCondition - ssSubjects;
+        if (ssError < 0 && ssError > -1e-10) ssError = 0;
+
+        var dfCondition = k - 1;
+        var dfSubjects = n - 1;
+        var dfError = dfCondition * dfSubjects;
+        var msCondition = ssCondition / dfCondition;
+        var msError = dfError > 0 ? ssError / dfError : NaN;
+        var f = msError > 0 ? msCondition / msError : NaN;
+        var p = isFinite(f) ? 1 - fCdf(f, dfCondition, dfError) : NaN;
+        var partialEtaSquared = (ssCondition + ssError) > 0 ? ssCondition / (ssCondition + ssError) : NaN;
+
+        var names = varNames || dataArrays.map(function(_, i) { return "Condition " + (i + 1); });
+        var descriptives = names.map(function(name, j) {
+            var col = rows.map(function(r) { return r[j]; });
+            return { variable: name, n: n, mean: mean(col), sd: sd(col), se: sd(col) / Math.sqrt(n) };
+        });
+
+        return {
+            n: n,
+            k: k,
+            f: f,
+            p: p,
+            ssCondition: ssCondition,
+            ssSubjects: ssSubjects,
+            ssError: ssError,
+            dfCondition: dfCondition,
+            dfSubjects: dfSubjects,
+            dfError: dfError,
+            msCondition: msCondition,
+            msError: msError,
+            partialEtaSquared: partialEtaSquared,
+            descriptives: descriptives
+        };
+    }
+
+    // =========================================================================
     // Export
     // =========================================================================
 
@@ -1551,6 +1789,8 @@
 
         // ANOVA
         onewayAnova: onewayAnova,
+        twoWayAnova: twoWayAnova,
+        repeatedMeasuresAnova: repeatedMeasuresAnova,
 
         // Non-parametric
         mannWhitneyU: mannWhitneyU,
@@ -2110,7 +2350,7 @@
         for(var i=0;i<n;i++){num+=(odd[i]-mo)*(even[i]-me);do2+=(odd[i]-mo)*(odd[i]-mo);de2+=(even[i]-me)*(even[i]-me);}
         var rHalf = (do2>0&&de2>0)?num/Math.sqrt(do2*de2):0;
         // Spearman-Brown
-        var spearmanBrown = 2*rHalf/(1+Math.abs(rHalf));
+        var spearmanBrown = (1 + rHalf) !== 0 ? 2*rHalf/(1+rHalf) : NaN;
         // Guttman split-half
         var varOdd=do2/(n-1), varEven=de2/(n-1);
         var totalScores = []; for(var i=0;i<n;i++){var s=0;for(var j=0;j<k;j++)s+=dataArrays[j][i];totalScores.push(s);}
@@ -2551,12 +2791,18 @@
         var k = groups.length;
         var means = [], vars = [], ns = [], weights = [];
         groups.forEach(function(g) {
+            g = clean(g);
+            if (g.length < 2) return;
             var m = g.reduce(function(a,b){return a+b;},0)/g.length;
             var v = g.reduce(function(a,b){return a+(b-m)*(b-m);},0)/(g.length-1);
+            if (!isFinite(v) || v <= 0) v = 1e-12;
             means.push(m); vars.push(v); ns.push(g.length);
             weights.push(g.length / v);
         });
+        k = means.length;
+        if (k < 2) return null;
         var totalWeight = weights.reduce(function(a,b){return a+b;},0);
+        if (!isFinite(totalWeight) || totalWeight <= 0) return null;
         var weightedMean = 0;
         for (var i=0;i<k;i++) weightedMean += weights[i]*means[i];
         weightedMean /= totalWeight;
@@ -2700,50 +2946,117 @@
     // =========================================================================
 
     Stats.discriminantAnalysis = function(dataArrays, varNames, groupVar) {
-        // Simplified: 2-group Fisher's Linear Discriminant
         if (!dataArrays || dataArrays.length < 1 || !groupVar) return null;
-        var n = groupVar.length;
+        var p = dataArrays.length;
+        var rows = [];
+        var nRaw = groupVar.length;
+        for (var i = 0; i < nRaw; i++) {
+            if (groupVar[i] === null || groupVar[i] === undefined || groupVar[i] === "") continue;
+            var vals = [];
+            var ok = true;
+            for (var j = 0; j < p; j++) {
+                var v = Number(dataArrays[j] ? dataArrays[j][i] : NaN);
+                if (!isFinite(v)) { ok = false; break; }
+                vals.push(v);
+            }
+            if (ok) rows.push({ group: String(groupVar[i]), x: vals });
+        }
         var groups = {};
-        groupVar.forEach(function(g,i){if(!groups[g])groups[g]=[];groups[g].push(i);});
+        rows.forEach(function(r, i) { if (!groups[r.group]) groups[r.group] = []; groups[r.group].push(i); });
         var gNames = Object.keys(groups);
         if (gNames.length !== 2) return {error:'Discriminant Analysis requires exactly 2 groups'};
 
-        var p = dataArrays.length;
+        var n = rows.length;
+        if (n <= p + 2) return {error:'Not enough complete cases for discriminant analysis'};
         var g1Indices = groups[gNames[0]], g2Indices = groups[gNames[1]];
-        var n1=g1Indices.length, n2=g2Indices.length;
+        var n1 = g1Indices.length, n2 = g2Indices.length;
+        if (n1 < 2 || n2 < 2) return {error:'Each group needs at least 2 complete cases'};
 
-        // Means per group
-        var m1=[], m2=[];
-        for(var j=0;j<p;j++){
-            var s1=0,s2=0;
-            g1Indices.forEach(function(i){s1+=dataArrays[j][i];}); m1.push(s1/n1);
-            g2Indices.forEach(function(i){s2+=dataArrays[j][i];}); m2.push(s2/n2);
+        function groupMean(indices) {
+            var m = new Array(p).fill(0);
+            indices.forEach(function(idx) {
+                for (var j = 0; j < p; j++) m[j] += rows[idx].x[j];
+            });
+            for (var j = 0; j < p; j++) m[j] /= indices.length;
+            return m;
+        }
+        function dot(a, b) {
+            var s = 0;
+            for (var i = 0; i < a.length; i++) s += a[i] * b[i];
+            return s;
+        }
+        function matVec(M, v) {
+            return M.map(function(row) { return dot(row, v); });
+        }
+        function det(M) {
+            var A = M.map(function(r) { return r.slice(); });
+            var d = 1;
+            for (var i = 0; i < A.length; i++) {
+                var pivot = i;
+                for (var r = i + 1; r < A.length; r++) if (Math.abs(A[r][i]) > Math.abs(A[pivot][i])) pivot = r;
+                if (Math.abs(A[pivot][i]) < 1e-12) return 0;
+                if (pivot !== i) { var tmp = A[i]; A[i] = A[pivot]; A[pivot] = tmp; d *= -1; }
+                d *= A[i][i];
+                for (var r2 = i + 1; r2 < A.length; r2++) {
+                    var f = A[r2][i] / A[i][i];
+                    for (var c = i; c < A.length; c++) A[r2][c] -= f * A[i][c];
+                }
+            }
+            return d;
         }
 
-        // Wilks' Lambda approximation
-        var ssB=0, ssT=0;
-        for(var j=0;j<p;j++){
-            var gm = (m1[j]*n1+m2[j]*n2)/n;
-            ssB += n1*(m1[j]-gm)*(m1[j]-gm) + n2*(m2[j]-gm)*(m2[j]-gm);
-            dataArrays[j].forEach(function(v){ssT+=(v-gm)*(v-gm);});
-        }
-        var wilksLambda = ssT>0 ? 1 - ssB/ssT : 1;
-        var F = ssB>0&&(n-2)>0 ? ((1-wilksLambda)/wilksLambda) * ((n-2)/1) : 0;
-        var pVal = F>0 ? 1-jStat.centralF.cdf(F,p,n-p-1) : 1;
+        var m1 = groupMean(g1Indices), m2 = groupMean(g2Indices);
+        var pooled = [];
+        for (var r = 0; r < p; r++) pooled.push(new Array(p).fill(0));
+        [g1Indices, g2Indices].forEach(function(indices, gi) {
+            var m = gi === 0 ? m1 : m2;
+            indices.forEach(function(idx) {
+                for (var a = 0; a < p; a++) {
+                    for (var b = 0; b < p; b++) {
+                        pooled[a][b] += (rows[idx].x[a] - m[a]) * (rows[idx].x[b] - m[b]);
+                    }
+                }
+            });
+        });
+        for (var a = 0; a < p; a++) for (var b = 0; b < p; b++) pooled[a][b] /= (n - 2);
+        var invPooled = invertMatrix(pooled);
+        if (!invPooled) return {error:'Predictor covariance matrix is singular'};
 
-        // Classification accuracy
+        var prior1 = n1 / n, prior2 = n2 / n;
+        function ldaScore(x, m, prior) {
+            var im = matVec(invPooled, m);
+            return dot(x, im) - 0.5 * dot(m, im) + Math.log(prior);
+        }
+
         var correct = 0;
-        for(var i=0;i<n;i++){
-            var d1=0,d2=0;
-            for(var j=0;j<p;j++){d1+=Math.pow(dataArrays[j][i]-m1[j],2);d2+=Math.pow(dataArrays[j][i]-m2[j],2);}
-            var predicted = d1<d2?gNames[0]:gNames[1];
-            if(predicted===groupVar[i]) correct++;
-        }
+        rows.forEach(function(r) {
+            var s1 = ldaScore(r.x, m1, prior1);
+            var s2 = ldaScore(r.x, m2, prior2);
+            var predicted = s1 >= s2 ? gNames[0] : gNames[1];
+            if (predicted === r.group) correct++;
+        });
+
+        var diff = m1.map(function(v, i) { return v - m2[i]; });
+        var d2 = dot(diff, matVec(invPooled, diff));
+        var hotellingT2 = (n1 * n2 / n) * d2;
+        var df2 = n - p - 1;
+        var F = df2 > 0 ? (df2 * hotellingT2) / (p * (n - 2)) : NaN;
+        var pVal = isFinite(F) ? 1 - jStat.centralF.cdf(F, p, df2) : NaN;
+
+        var total = [];
+        var grand = new Array(p).fill(0);
+        rows.forEach(function(r) { for (var j = 0; j < p; j++) grand[j] += r.x[j]; });
+        for (var j = 0; j < p; j++) grand[j] /= n;
+        for (var r3 = 0; r3 < p; r3++) total.push(new Array(p).fill(0));
+        rows.forEach(function(r) {
+            for (var a = 0; a < p; a++) for (var b = 0; b < p; b++) total[a][b] += (r.x[a] - grand[a]) * (r.x[b] - grand[b]);
+        });
+        var wilksLambda = det(total) !== 0 ? det(pooled.map(function(row) { return row.map(function(v) { return v * (n - 2); }); })) / det(total) : NaN;
 
         return {
             groups:gNames, n:n, variables:varNames||[],
             groupMeans:gNames.map(function(g,i){var obj={Group:g,N:i===0?n1:n2};for(var j=0;j<p;j++)obj[varNames?varNames[j]:'V'+(j+1)]=i===0?m1[j]:m2[j];return obj;}),
-            wilksLambda:wilksLambda, F:F, df1:p, df2:n-p-1, p:pVal,
+            wilksLambda:wilksLambda, F:F, df1:p, df2:df2, p:pVal,
             accuracy:correct/n*100, correct:correct
         };
     };
