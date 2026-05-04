@@ -66,6 +66,9 @@
         if (uploadStatus) uploadStatus.innerHTML = '';
         var fileInput = document.getElementById('file-upload');
         if (fileInput) fileInput.value = '';
+        var sheetSel = document.getElementById('sheet-selector');
+        if (sheetSel) sheetSel.style.display = 'none';
+        state._workbook = null;
     }
 
     // =========================================================================
@@ -81,32 +84,59 @@
             try {
                 var data = new Uint8Array(e.target.result);
                 var workbook = XLSX.read(data, { type: 'array' });
-                var sheetName = workbook.SheetNames[0];
-                var sheet = workbook.Sheets[sheetName];
-                var jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+                state._workbook = workbook;
 
-                if (!jsonData || jsonData.length === 0) {
-                    alert('The uploaded file is empty or has no valid data.');
-                    return;
+                var sheetSel = document.getElementById('sheet-selector');
+                var sheetSelect = document.getElementById('sheet-select');
+
+                if (workbook.SheetNames.length > 1) {
+                    // Populate sheet dropdown
+                    sheetSelect.innerHTML = '';
+                    workbook.SheetNames.forEach(function(name) {
+                        var opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        sheetSelect.appendChild(opt);
+                    });
+                    sheetSel.style.display = '';
+                } else {
+                    sheetSel.style.display = 'none';
                 }
 
-                state.data = jsonData;
-                state.columns = Object.keys(jsonData[0]);
-                classifyColumns();
-
-                var statusEl = document.getElementById('upload-status');
-                if (statusEl) {
-                    statusEl.innerHTML = '<span class="status-success">&#10004; ' + jsonData.length + ' rows &times; ' + state.columns.length + ' cols</span>';
-                }
-
-                populateSelects();
-                updateHomePage();
+                // Load first sheet by default
+                loadSheet(workbook.SheetNames[0]);
 
             } catch (err) {
                 alert('Error reading file: ' + err.message);
             }
         };
         reader.readAsArrayBuffer(file);
+    }
+
+    function loadSheet(sheetName) {
+        var workbook = state._workbook;
+        if (!workbook || !sheetName) return;
+        var sheet = workbook.Sheets[sheetName];
+        if (!sheet) return;
+
+        var jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+        if (!jsonData || jsonData.length === 0) {
+            var statusEl = document.getElementById('upload-status');
+            if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">⚠ Sheet นี้ไม่มีข้อมูล</span>';
+            return;
+        }
+
+        state.data = jsonData;
+        state.columns = Object.keys(jsonData[0]);
+        classifyColumns();
+
+        var statusEl = document.getElementById('upload-status');
+        if (statusEl) {
+            statusEl.innerHTML = '<span class="status-success">&#10004; ' + sheetName + ' — ' + jsonData.length + ' rows &times; ' + state.columns.length + ' cols</span>';
+        }
+
+        populateSelects();
+        updateHomePage();
     }
 
     function classifyColumns() {
@@ -6227,6 +6257,7 @@
 
     window.handleLogin = handleLogin;
     window.handleLogout = handleLogout;
+    window.loadSheet = loadSheet;
     window.navigateTo = navigateTo;
     window.toggleSidebar = toggleSidebar;
     window.toggleMenuGroup = toggleMenuGroup;
