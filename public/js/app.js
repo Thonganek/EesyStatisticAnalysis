@@ -243,6 +243,7 @@
             'split-half': 'sh',
             'mcnemar': 'mcn',
             'fisher-exact': 'fe',
+            'or-rr': 'orr',
             'cochran-q': 'cq',
             'power-analysis':'pwr','welch-anova':'wa','dunnett':'dnt','median-test':'mdt',
             'runs-test':'run','ks2':'ks2','cluster':'cls','discriminant':'da','missing':'miss','qqplot':'qq',
@@ -1020,6 +1021,7 @@
                 case 'split-half': runSplitHalf(); break;
                 case 'mcnemar': runMcNemar(); break;
                 case 'fisher-exact': runFisherExact(); break;
+                case 'or-rr': runORRR(); break;
                 case 'cochran-q': runCochranQ(); break;
                 case 'power-analysis': runPowerAnalysis(); break;
                 case 'welch-anova': runWelchAnova(); break;
@@ -3724,6 +3726,85 @@
 
         state.results['cd'] = { data: mainRows, title: 'Odds Ratio & Risk Ratio (N = ' + n + ')', extras: extras };
         displayResults('cd');
+    }
+
+    // =========================================================================
+    // Odds Ratio / Risk Ratio — dedicated page (prefix: orr)
+    // =========================================================================
+
+    function _buildORRR(var1, var2, prefix) {
+        var orRows = getListwiseRows([var1, var2], []);
+        var v1 = orRows.map(function(r) { return r[var1]; });
+        var v2 = orRows.map(function(r) { return r[var2]; });
+
+        var cats1 = [], cats2 = [], c1Set = {}, c2Set = {};
+        for (var i = 0; i < v1.length; i++) {
+            var s1 = String(v1[i]), s2 = String(v2[i]);
+            if (!c1Set[s1]) { c1Set[s1] = true; cats1.push(s1); }
+            if (!c2Set[s2]) { c2Set[s2] = true; cats2.push(s2); }
+        }
+        if (cats1.length !== 2 || cats2.length !== 2) {
+            alert('OR / RR requires exactly 2 categories per variable.\nExposure: ' + cats1.length + ', Outcome: ' + cats2.length);
+            return;
+        }
+
+        var table = [[0, 0], [0, 0]];
+        for (var i = 0; i < v1.length; i++) {
+            var r = cats1.indexOf(String(v1[i]));
+            var c = cats2.indexOf(String(v2[i]));
+            if (r >= 0 && c >= 0) table[r][c]++;
+        }
+        var a = table[0][0], b = table[0][1], c = table[1][0], d = table[1][1];
+        var n = a + b + c + d;
+
+        var result = Stats.oddsRatioRR(a, b, c, d);
+        if (!result) { alert('ไม่สามารถคำนวณได้ — ตรวจสอบว่าไม่มีเซลล์ที่มีค่า 0'); return; }
+
+        var chi2NoYates = (n > 0 && (a+b) > 0 && (c+d) > 0 && (a+c) > 0 && (b+d) > 0)
+            ? n * Math.pow(a*d - b*c, 2) / ((a+b)*(c+d)*(a+c)*(b+d)) : NaN;
+        var chi2Yates = (n > 0 && (a+b) > 0 && (c+d) > 0 && (a+c) > 0 && (b+d) > 0)
+            ? n * Math.pow(Math.abs(a*d - b*c) - n/2, 2) / ((a+b)*(c+d)*(a+c)*(b+d)) : NaN;
+        var pChi = !isNaN(chi2NoYates) ? 1 - jStat.chisquare.cdf(chi2NoYates, 1) : NaN;
+        var pYates = !isNaN(chi2Yates) ? 1 - jStat.chisquare.cdf(chi2Yates, 1) : NaN;
+
+        var p1 = a / (a + b), p2 = c / (c + d);
+        var rd = p1 - p2;
+        var rdSE = Math.sqrt(p1*(1-p1)/(a+b) + p2*(1-p2)/(c+d));
+        var rdCI = Stats.formatCI(rd - 1.96*rdSE, rd + 1.96*rdSE);
+
+        var extras = [
+            {
+                title: '2×2 Contingency Table',
+                data: [
+                    { 'Exposure \\ Outcome': cats1[0] + ' (Exposed)',   [cats2[0] + ' (Outcome)']: a, [cats2[1] + ' (No Outcome)']: b, 'Total': a+b, 'Risk (%)': fmt((a/(a+b))*100, 1) },
+                    { 'Exposure \\ Outcome': cats1[1] + ' (Unexposed)', [cats2[0] + ' (Outcome)']: c, [cats2[1] + ' (No Outcome)']: d, 'Total': c+d, 'Risk (%)': fmt((c/(c+d))*100, 1) },
+                    { 'Exposure \\ Outcome': 'Total',                   [cats2[0] + ' (Outcome)']: a+c, [cats2[1] + ' (No Outcome)']: b+d, 'Total': n,  'Risk (%)': fmt(((a+c)/n)*100, 1) }
+                ]
+            },
+            {
+                title: 'Chi-Square Test of Independence',
+                data: [
+                    { 'Test': 'Pearson Chi-Square',          'χ²': fmt(chi2NoYates), 'df': 1, 'p': Stats.formatPValue(pChi),   'Sig.': pChi < 0.05 ? '*' : '' },
+                    { 'Test': "Yates' Continuity Correction", 'χ²': fmt(chi2Yates),   'df': 1, 'p': Stats.formatPValue(pYates), 'Sig.': pYates < 0.05 ? '*' : '' }
+                ]
+            }
+        ];
+
+        var mainRows = [
+            { 'Measure': 'Odds Ratio (OR)',                    'Value': fmt(result.or), '95% CI': result.orCI, 'Interpretation': result.or > 1 ? 'เพิ่มโอกาส (Increased odds)' : result.or < 1 ? 'ลดโอกาส (Decreased odds)' : 'No effect' },
+            { 'Measure': 'Risk Ratio / Relative Risk (RR)',    'Value': fmt(result.rr), '95% CI': result.rrCI, 'Interpretation': result.rr > 1 ? 'เพิ่มความเสี่ยง (Increased risk)' : result.rr < 1 ? 'ลดความเสี่ยง (Decreased risk)' : 'No effect' },
+            { 'Measure': 'Risk Difference / Attributable Risk', 'Value': fmt(rd),        '95% CI': rdCI,        'Interpretation': rd > 0 ? 'Exposed group has higher absolute risk' : rd < 0 ? 'Exposed group has lower absolute risk' : 'No difference' }
+        ];
+
+        state.results[prefix] = { data: mainRows, title: 'Odds Ratio & Risk Ratio — ' + var1 + ' vs ' + var2 + ' (N = ' + n + ')', extras: extras };
+        displayResults(prefix);
+    }
+
+    function runORRR() {
+        var var1 = getPickerValue('orr-var1-picker', 'orr-var1');
+        var var2 = getPickerValue('orr-var2-picker', 'orr-var2');
+        if (!var1 || !var2) { alert('กรุณาเลือกตัวแปรทั้ง 2 ตัว'); return; }
+        _buildORRR(var1, var2, 'orr');
     }
 
     // =========================================================================

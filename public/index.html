@@ -170,6 +170,16 @@
                 </div>
             </div>
 
+            <!-- 4b. Epidemiology / Risk Analysis -->
+            <div class="menu-group">
+                <div class="menu-group-header" onclick="toggleMenuGroup(this)">
+                    <span>🏥 Epidemiology / Risk</span><span class="menu-arrow">▸</span>
+                </div>
+                <div class="menu-group-items">
+                    <button class="menu-item" onclick="navigateTo('or-rr')">Odds Ratio / Risk Ratio</button>
+                </div>
+            </div>
+
             <!-- 5. Post-hoc Comparisons -->
             <div class="menu-group">
                 <div class="menu-group-header" onclick="toggleMenuGroup(this)">
@@ -219,7 +229,7 @@
                     <span>📏 Effect Size & Sample Size</span><span class="menu-arrow">▸</span>
                 </div>
                 <div class="menu-group-items">
-                    <button class="menu-item" onclick="navigateTo('effect-size')">Cohen's d / OR / RR</button>
+                    <button class="menu-item" onclick="navigateTo('effect-size')">Cohen's d</button>
                     <button class="menu-item" onclick="navigateTo('bootstrap')">Bootstrap CI</button>
                     <button class="menu-item" onclick="navigateTo('power-analysis')">Power Analysis</button>
                     <button class="menu-item" onclick="navigateTo('sample-size')">Sample Size Calculator</button>
@@ -2508,6 +2518,64 @@
         <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="fe-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
             <button class="btn btn-ai" onclick="aiAnalyze('fe')">🤖 AI วิเคราะห์ผล</button><div id="fe-ai-result" class="ai-result-box" style="display:none"></div></div>
         <div class="export-area"><button class="btn btn-export" onclick="exportExcel('fe')">📥 Excel</button></div>
+    </div>
+</div>
+
+        <!-- ================================================== -->
+        <!-- PAGE: ODDS RATIO / RISK RATIO                       -->
+        <!-- ================================================== -->
+<div class="page" id="page-or-rr">
+    <h2 class="page-title">🏥 Odds Ratio &amp; Risk Ratio</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วัดขนาดความสัมพันธ์ระหว่าง Exposure กับ Outcome ในตาราง 2×2</p>
+            <p><strong>เงื่อนไข:</strong> ตัวแปรทั้งสองต้องมีเพียง 2 ระดับ (Binary)</p>
+            <ul>
+                <li><strong>Odds Ratio (OR)</strong> — ใช้ใน Case-Control Study หรือ Logistic Regression</li>
+                <li><strong>Risk Ratio / Relative Risk (RR)</strong> — ใช้ใน Cohort Study หรือ RCT</li>
+                <li><strong>Risk Difference (RD)</strong> — ความต่างของความเสี่ยงสัมบูรณ์</li>
+            </ul>
+            <p><strong>ตัวอย่าง:</strong> สูบบุหรี่ (ใช่/ไม่ใช่) กับเป็นมะเร็งปอด (ใช่/ไม่ใช่)</p>
+        </div>
+    </details>
+    <div class="card">
+        <p style="margin:0 0 12px;color:#64748b;font-size:0.85rem">
+            เลือกตัวแปร 2 ตัว (แต่ละตัวต้องมีค่าได้ 2 ระดับ)<br>
+            <strong>Variable 1</strong> = Exposure (การรับสัมผัส เช่น สูบบุหรี่) &nbsp;|&nbsp;
+            <strong>Variable 2</strong> = Outcome (ผลลัพธ์ เช่น เป็นโรค)
+        </p>
+        <div class="form-group">
+            <label>Variable 1 — Exposure (Row)</label>
+            <select id="orr-var1" class="var-select" style="display:none"></select>
+            <div id="orr-var1-picker"></div>
+        </div>
+        <div class="form-group">
+            <label>Variable 2 — Outcome (Column)</label>
+            <select id="orr-var2" class="var-select" style="display:none"></select>
+            <div id="orr-var2-picker"></div>
+        </div>
+        <button class="btn btn-primary" onclick="runAnalysis('or-rr')">Calculate OR &amp; RR</button>
+    </div>
+    <div id="orr-results" class="results-area">
+        <div id="orr-extras"></div>
+        <div id="orr-table"></div>
+        <div class="ai-section">
+            <div class="interp-options">
+                <label class="form-label">📝 รูปแบบการแปลผล</label>
+                <select id="orr-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4 — เชิงวิชาการ (APA)</option>
+                    <option value="abstract">บทคัดย่อ — สรุปสั้น</option>
+                    <option value="explain">อธิบายให้เข้าใจง่าย</option>
+                    <option value="presentation">สไลด์นำเสนอ — bullet points</option>
+                </select>
+            </div>
+            <button class="btn btn-ai" onclick="aiAnalyze('orr')">🤖 AI วิเคราะห์ผล — สรุปบทที่ 4</button>
+            <div id="orr-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('orr')">📥 Download Excel</button>
+            <button class="btn btn-export" onclick="exportWord('orr')">📥 Download Word</button>
+        </div>
     </div>
 </div>
 
