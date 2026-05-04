@@ -542,9 +542,19 @@
         var U2 = n1 * n2 + n2 * (n2 + 1) / 2 - R2;
         var U = Math.min(U1, U2);
 
-        // Normal approximation
+        // Normal approximation with tie correction (Hollander & Wolfe)
         var muU = n1 * n2 / 2;
-        var sigmaU = Math.sqrt(n1 * n2 * (n1 + n2 + 1) / 12);
+        var N = n1 + n2;
+        var tieSum = 0; // sum of (t_k^3 - t_k) over tie groups in combined sorted array
+        var ti = 0;
+        while (ti < N) {
+            var tj = ti;
+            while (tj < N - 1 && combined[tj + 1].v === combined[ti].v) tj++;
+            var tk = tj - ti + 1;
+            tieSum += tk * tk * tk - tk;
+            ti = tj + 1;
+        }
+        var sigmaU = Math.sqrt(n1 * n2 / 12 * ((N + 1) - tieSum / (N * (N - 1))));
         var Z = sigmaU > 0 ? (U - muU) / sigmaU : 0;
         var p = 2 * (1 - normCdf(Math.abs(Z)));
 
@@ -587,10 +597,21 @@
 
         var W = Math.min(Wpos, Wneg);
         var muW = nEff * (nEff + 1) / 4;
-        var sigmaW = Math.sqrt(nEff * (nEff + 1) * (2 * nEff + 1) / 24);
+        // Tie correction on absolute differences
+        var wxTieSum = 0;
+        var wxSorted = absDiffs.slice().sort(function(a, b) { return a - b; });
+        var wxi = 0;
+        while (wxi < nEff) {
+            var wxj = wxi;
+            while (wxj < nEff - 1 && wxSorted[wxj + 1] === wxSorted[wxi]) wxj++;
+            var wxt = wxj - wxi + 1;
+            wxTieSum += wxt * wxt * wxt - wxt;
+            wxi = wxj + 1;
+        }
+        var sigmaW = Math.sqrt(nEff * (nEff + 1) * (2 * nEff + 1) / 24 - wxTieSum / 48);
         var Z = sigmaW > 0 ? (W - muW) / sigmaW : 0;
         var p = 2 * (1 - normCdf(Math.abs(Z)));
-        var r = n > 0 ? Math.abs(Z) / Math.sqrt(n) : NaN;
+        var r = nEff > 0 ? Math.abs(Z) / Math.sqrt(nEff) : NaN;
 
         return {
             W: W, Z: Z, p: p, r: r, effectSize: interpretR(r),
@@ -639,6 +660,20 @@
             H += (rankSums[g] * rankSums[g]) / ns[g];
         }
         H = (12 / (N * (N + 1))) * H - 3 * (N + 1);
+
+        // Tie correction: divide H by 1 - sum(t^3 - t) / (N^3 - N)
+        var kwTieSum = 0;
+        var kwSorted = combined.slice().sort(function(a, b) { return a.v - b.v; });
+        var kwi = 0;
+        while (kwi < N) {
+            var kwj = kwi;
+            while (kwj < N - 1 && kwSorted[kwj + 1].v === kwSorted[kwi].v) kwj++;
+            var kwt = kwj - kwi + 1;
+            kwTieSum += kwt * kwt * kwt - kwt;
+            kwi = kwj + 1;
+        }
+        var kwCF = 1 - kwTieSum / (N * N * N - N);
+        if (kwCF > 0) H = H / kwCF;
 
         var df = cleaned.length - 1;
         var p = H >= 0 && df > 0 ? (1 - chi2Cdf(H, df)) : NaN;
@@ -712,6 +747,25 @@
         }
 
         var chiSquare = (12 * n / (k * (k + 1))) * ssRanks;
+
+        // Tie correction: CF = 1 - sum_over_blocks(sum_ties(t^3-t)) / (n*k*(k^2-1))
+        var frTieSum = 0;
+        for (var subj2 = 0; subj2 < n; subj2++) {
+            var rowVals = [];
+            for (var v2 = 0; v2 < k; v2++) rowVals.push(cleaned[v2][subj2]);
+            rowVals.sort(function(a, b) { return a - b; });
+            var fi = 0;
+            while (fi < k) {
+                var fj = fi;
+                while (fj < k - 1 && rowVals[fj + 1] === rowVals[fi]) fj++;
+                var ft = fj - fi + 1;
+                frTieSum += ft * ft * ft - ft;
+                fi = fj + 1;
+            }
+        }
+        var frCF = 1 - frTieSum / (n * k * (k * k - 1));
+        if (frCF > 0) chiSquare = chiSquare / frCF;
+
         var df = k - 1;
         var p = chiSquare >= 0 && df > 0 ? (1 - chi2Cdf(chiSquare, df)) : NaN;
         var kendallW = chiSquare / (n * (k - 1));
@@ -888,11 +942,14 @@
             matrix[i][i] = 1;
             pMatrix[i][i] = 0;
             for (var j = i + 1; j < k; j++) {
-                // Get paired data (only where both have valid values)
-                var xi = clean(data[i]), xj = clean(data[j]);
-                var minLen = Math.min(xi.length, xj.length);
-                xi = xi.slice(0, minLen);
-                xj = xj.slice(0, minLen);
+                // Pairwise deletion: include only positions where BOTH columns are valid
+                var rawI = data[i], rawJ = data[j];
+                var xi = [], xj = [];
+                var pairLen = Math.min(rawI.length, rawJ.length);
+                for (var q = 0; q < pairLen; q++) {
+                    var vi = Number(rawI[q]), vj = Number(rawJ[q]);
+                    if (isFinite(vi) && isFinite(vj)) { xi.push(vi); xj.push(vj); }
+                }
 
                 var result;
                 if (method === "spearman") {
@@ -940,7 +997,8 @@
         for (var i = 0; i < n; i++) {
             var row = [1]; // intercept
             for (var j = 0; j < p; j++) {
-                row.push(Number(xs[j][i]) || 0);
+                var xval = Number(xs[j][i]);
+                row.push(isFinite(xval) ? xval : NaN);
             }
             X.push(row);
         }
@@ -1090,6 +1148,13 @@
         var yClean = clean(y);
         if (yClean.length < 3 || !Array.isArray(xs) || xs.length < 1) return null;
 
+        // Encode DV as 0/1: sort unique values, map smallest→0, largest→1
+        var uniqueY = [];
+        yClean.forEach(function(v) { if (uniqueY.indexOf(v) < 0) uniqueY.push(v); });
+        uniqueY.sort(function(a, b) { return a - b; });
+        if (uniqueY.length !== 2) return null; // DV must be binary
+        yClean = yClean.map(function(v) { return v === uniqueY[1] ? 1 : 0; });
+
         var n = yClean.length;
         var p = xs.length;
         var names = varNames || ["(Intercept)"].concat(xs.map(function (_, i) { return "X" + (i + 1); }));
@@ -1098,7 +1163,10 @@
         var X = [];
         for (var i = 0; i < n; i++) {
             var row = [1];
-            for (var j = 0; j < p; j++) row.push(Number(xs[j][i]) || 0);
+            for (var j = 0; j < p; j++) {
+                var xval = Number(xs[j][i]);
+                row.push(isFinite(xval) ? xval : NaN);
+            }
             X.push(row);
         }
 
@@ -1551,16 +1619,18 @@
                 var diff = mi - mj;
                 var se = Math.sqrt(msW * (1/ni + 1/nj) / 2);
                 var q = Math.abs(diff) / se;
-                // Approximate p-value using t-distribution
-                var t = q / Math.sqrt(2);
-                var p = 2 * (1 - jStat.studentt.cdf(Math.abs(t), dfW));
-                // Bonferroni correction
-                var pAdj = Math.min(p * (k * (k-1) / 2), 1);
+                var p;
+                if (jStat.studentizedRange && typeof jStat.studentizedRange.cdf === 'function') {
+                    p = Math.max(1 - jStat.studentizedRange.cdf(q, k, dfW), 0);
+                } else {
+                    var tFallback = q / Math.sqrt(2);
+                    p = Math.min(2 * (1 - jStat.studentt.cdf(Math.abs(tFallback), dfW)) * (k * (k-1) / 2), 1);
+                }
                 pairs.push({
                     groupA: groupNames[i], groupB: groupNames[j],
                     meanA: mi, meanB: mj, meanDiff: diff,
-                    se: se, t: t, p: p, pAdjusted: pAdj,
-                    significant: pAdj < alpha
+                    se: se, q: q, p: p, pAdjusted: p,
+                    significant: p < alpha
                 });
             }
         }
@@ -1783,19 +1853,28 @@
         // Kaiser criterion: eigenvalue > 1
         var nFactors = components.filter(function(c) { return c.eigenvalue >= 1; }).length;
 
-        // KMO approximation
-        var sumR2 = 0, sumP2 = 0;
-        for (var i = 0; i < p; i++) {
-            for (var j = 0; j < p; j++) {
-                if (i !== j) {
-                    sumR2 += corrMatrix[i][j] * corrMatrix[i][j];
-                    // Partial correlation approximation
-                    sumP2 += corrMatrix[i][j] * corrMatrix[i][j] * 0.1;
+        // KMO via proper partial correlations from inverse of correlation matrix
+        var invCorr = invertMatrix(corrMatrix);
+        var kmo, kmoInterp;
+        if (invCorr) {
+            var sumR2 = 0, sumP2 = 0;
+            for (var i = 0; i < p; i++) {
+                for (var j = 0; j < p; j++) {
+                    if (i !== j) {
+                        var r_ij = corrMatrix[i][j];
+                        var pij = (invCorr[i][i] > 0 && invCorr[j][j] > 0)
+                            ? -invCorr[i][j] / Math.sqrt(invCorr[i][i] * invCorr[j][j])
+                            : 0;
+                        sumR2 += r_ij * r_ij;
+                        sumP2 += pij * pij;
+                    }
                 }
             }
+            kmo = (sumR2 + sumP2) > 0 ? sumR2 / (sumR2 + sumP2) : NaN;
+        } else {
+            kmo = NaN;
         }
-        var kmo = sumR2 / (sumR2 + sumP2);
-        var kmoInterp = kmo >= 0.9 ? 'Marvelous' : kmo >= 0.8 ? 'Meritorious' : kmo >= 0.7 ? 'Middling' : kmo >= 0.6 ? 'Mediocre' : kmo >= 0.5 ? 'Miserable' : 'Unacceptable';
+        kmoInterp = isNaN(kmo) ? 'N/A' : kmo >= 0.9 ? 'Marvelous' : kmo >= 0.8 ? 'Meritorious' : kmo >= 0.7 ? 'Middling' : kmo >= 0.6 ? 'Mediocre' : kmo >= 0.5 ? 'Miserable' : 'Unacceptable';
 
         return {
             corrMatrix: corrMatrix, varNames: names,
@@ -1905,23 +1984,39 @@
         if (!x || !y || x.length < 3) return null;
         var n = x.length;
 
+        // Residualize dep on ALL controls simultaneously via OLS
         function residuals(dep, predictors) {
             var m = dep.reduce(function(a,b){return a+b;},0)/n;
             if (!predictors || predictors.length === 0) return dep.map(function(v){return v-m;});
-            // Simple OLS residuals
-            var k = predictors.length;
-            // Use correlation-based residuals for simplicity
-            var resid = dep.slice();
-            predictors.forEach(function(pred) {
-                var mp = pred.reduce(function(a,b){return a+b;},0)/n;
-                var md = resid.reduce(function(a,b){return a+b;},0)/n;
-                var num=0, den=0;
-                for(var i=0;i<n;i++){num+=(pred[i]-mp)*(resid[i]-md); den+=(pred[i]-mp)*(pred[i]-mp);}
-                var b = den>0 ? num/den : 0;
-                var a = md - b*mp;
-                resid = resid.map(function(v,i){return v - (a + b*pred[i]);});
+            var cols = predictors.length + 1; // intercept + controls
+            // Build X matrix
+            var Xmat = [];
+            for (var i = 0; i < n; i++) {
+                var row = [1];
+                for (var j = 0; j < predictors.length; j++) row.push(predictors[j][i]);
+                Xmat.push(row);
+            }
+            // XtX
+            var XtX = [];
+            for (var i = 0; i < cols; i++) {
+                XtX.push(new Array(cols).fill(0));
+                for (var j = 0; j < cols; j++)
+                    for (var k = 0; k < n; k++) XtX[i][j] += Xmat[k][i] * Xmat[k][j];
+            }
+            // Xty
+            var Xty = new Array(cols).fill(0);
+            for (var i = 0; i < cols; i++)
+                for (var k = 0; k < n; k++) Xty[i] += Xmat[k][i] * dep[k];
+            var inv = invertMatrix(XtX);
+            if (!inv) return dep.map(function(v){return v-m;});
+            var b = new Array(cols).fill(0);
+            for (var i = 0; i < cols; i++)
+                for (var j = 0; j < cols; j++) b[i] += inv[i][j] * Xty[j];
+            return dep.map(function(v, i) {
+                var fitted = 0;
+                for (var j = 0; j < cols; j++) fitted += b[j] * Xmat[i][j];
+                return v - fitted;
             });
-            return resid;
         }
 
         var rx = residuals(x, controls);
@@ -2198,25 +2293,39 @@
     // =========================================================================
 
     Stats.gamesHowell = function(groups, groupNames) {
-        if(!groups||groups.length<2) return null;
-        var k=groups.length;
-        var pairs=[];
-        for(var i=0;i<k;i++){
-            for(var j=i+1;j<k;j++){
-                var ni=groups[i].length, nj=groups[j].length;
-                var mi=groups[i].reduce(function(a,b){return a+b;},0)/ni;
-                var mj=groups[j].reduce(function(a,b){return a+b;},0)/nj;
-                var vi=groups[i].reduce(function(a,b){return a+(b-mi)*(b-mi);},0)/(ni-1);
-                var vj=groups[j].reduce(function(a,b){return a+(b-mj)*(b-mj);},0)/(nj-1);
-                var se=Math.sqrt(vi/ni+vj/nj);
-                var t=se>0?(mi-mj)/se:0;
+        if (!groups || groups.length < 2) return null;
+        var k = groups.length;
+        var pairs = [];
+        for (var i = 0; i < k; i++) {
+            for (var j = i + 1; j < k; j++) {
+                var ni = groups[i].length, nj = groups[j].length;
+                var mi = groups[i].reduce(function(a, b) { return a + b; }, 0) / ni;
+                var mj = groups[j].reduce(function(a, b) { return a + b; }, 0) / nj;
+                var vi = groups[i].reduce(function(a, b) { return a + (b - mi) * (b - mi); }, 0) / (ni - 1);
+                var vj = groups[j].reduce(function(a, b) { return a + (b - mj) * (b - mj); }, 0) / (nj - 1);
+                // Games-Howell: q = |diff| / sqrt((vi/ni + vj/nj)/2)
+                var seQ = Math.sqrt((vi / ni + vj / nj) / 2);
+                var q = seQ > 0 ? Math.abs(mi - mj) / seQ : 0;
                 // Welch-Satterthwaite df
-                var num=Math.pow(vi/ni+vj/nj,2);
-                var den=Math.pow(vi/ni,2)/(ni-1)+Math.pow(vj/nj,2)/(nj-1);
-                var df=den>0?num/den:1;
-                var p=2*(1-jStat.studentt.cdf(Math.abs(t),df));
-                pairs.push({groupA:groupNames[i],groupB:groupNames[j],meanA:mi,meanB:mj,
-                            meanDiff:mi-mj,se:se,t:t,df:df,p:p,significant:p<0.05});
+                var varSum = vi / ni + vj / nj;
+                var dfNum = varSum * varSum;
+                var dfDen = Math.pow(vi / ni, 2) / (ni - 1) + Math.pow(vj / nj, 2) / (nj - 1);
+                var df = dfDen > 0 ? dfNum / dfDen : 1;
+                // p-value via studentized range distribution with Satterthwaite df
+                var p;
+                if (jStat.studentizedRange && typeof jStat.studentizedRange.cdf === 'function') {
+                    p = Math.max(1 - jStat.studentizedRange.cdf(q, k, df), 0);
+                } else {
+                    // Fallback: Bonferroni-corrected Welch t-test
+                    var t = q / Math.sqrt(2);
+                    p = Math.min(2 * (1 - jStat.studentt.cdf(Math.abs(t), df)) * (k * (k - 1) / 2), 1);
+                }
+                pairs.push({
+                    groupA: groupNames[i], groupB: groupNames[j],
+                    meanA: mi, meanB: mj, meanDiff: mi - mj,
+                    se: seQ, q: q, df: Math.round(df * 10) / 10,
+                    p: p, pAdjusted: p, significant: p < 0.05
+                });
             }
         }
         return pairs;
@@ -2381,23 +2490,28 @@
     Stats.runsTest = function(values) {
         if (!values || values.length < 10) return null;
         var n = values.length;
-        var m = values.reduce(function(a,b){return a+b;},0)/n;
-        // Convert to above/below median
-        var signs = values.map(function(v){return v >= m ? 1 : 0;});
-        var n1 = signs.filter(function(s){return s===1;}).length;
-        var n2 = signs.filter(function(s){return s===0;}).length;
-        // Count runs
-        var runs = 1;
-        for (var i = 1; i < n; i++) {
-            if (signs[i] !== signs[i-1]) runs++;
+        // Wald-Wolfowitz: split by median (exclude values equal to median)
+        var sorted = values.slice().sort(function(a, b) { return a - b; });
+        var mid = Math.floor(sorted.length / 2);
+        var m = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        var filtered = values.filter(function(v) { return v !== m; });
+        var signs = filtered.map(function(v) { return v > m ? 1 : 0; });
+        var n1 = signs.filter(function(s) { return s === 1; }).length;
+        var n2 = signs.filter(function(s) { return s === 0; }).length;
+        if (n1 === 0 || n2 === 0) return null;
+        // Count runs on filtered sequence
+        var runs = signs.length > 0 ? 1 : 0;
+        for (var i = 1; i < signs.length; i++) {
+            if (signs[i] !== signs[i - 1]) runs++;
         }
         // Expected runs and variance
-        var expectedRuns = (2*n1*n2)/(n1+n2) + 1;
-        var varRuns = (2*n1*n2*(2*n1*n2-n1-n2))/((n1+n2)*(n1+n2)*(n1+n2-1));
+        var nn = n1 + n2;
+        var expectedRuns = (2 * n1 * n2) / nn + 1;
+        var varRuns = (2 * n1 * n2 * (2 * n1 * n2 - nn)) / (nn * nn * (nn - 1));
         var z = varRuns > 0 ? (runs - expectedRuns) / Math.sqrt(varRuns) : 0;
         var p = 2 * (1 - jStat.normal.cdf(Math.abs(z), 0, 1));
 
-        return {runs: runs, expectedRuns: expectedRuns, n: n, n1: n1, n2: n2, z: z, p: p, random: p >= 0.05};
+        return { runs: runs, expectedRuns: expectedRuns, n: n, n1: n1, n2: n2, z: z, p: p, random: p >= 0.05 };
     };
 
     // =========================================================================
@@ -2678,7 +2792,8 @@
 
         var atRisk = n;
         var survivalProb = 1.0;
-        var curve = [{time: 0, survival: 1.0, atRisk: n, events: 0, censored: 0}];
+        var greenwoodSum = 0; // cumulative Greenwood variance sum
+        var curve = [{time: 0, survival: 1.0, atRisk: n, events: 0, censored: 0, se: 0}];
         var medianSurvival = null;
 
         uniqueTimes.forEach(function(t) {
@@ -2692,12 +2807,16 @@
 
             if (events > 0) {
                 survivalProb *= (atRisk - events) / atRisk;
+                // Greenwood's formula: accumulate d/(n*(n-d)) at each event time
+                if (atRisk > events) {
+                    greenwoodSum += events / (atRisk * (atRisk - events));
+                }
             }
 
             curve.push({
                 time: t, survival: survivalProb, atRisk: atRisk,
                 events: events, censored: censored,
-                se: survivalProb * Math.sqrt(events / (atRisk * (atRisk - events + 0.001)))
+                se: survivalProb * Math.sqrt(greenwoodSum)
             });
 
             if (medianSurvival === null && survivalProb <= 0.5) medianSurvival = t;
@@ -2720,91 +2839,133 @@
     };
 
     Stats.logRankTest = function(time1, event1, time2, event2) {
-        // Compare 2 survival curves
-        if (!time1 || !time2) return null;
-        var km1 = Stats.kaplanMeier(time1, event1);
-        var km2 = Stats.kaplanMeier(time2, event2);
-        if (!km1 || !km2) return null;
+        if (!time1 || !time2 || time1.length < 1 || time2.length < 1) return null;
 
-        // Combine all unique times
+        // Collect unique event times from both groups
         var allTimes = {};
-        km1.curve.forEach(function(p) { allTimes[p.time] = true; });
-        km2.curve.forEach(function(p) { allTimes[p.time] = true; });
-        var times = Object.keys(allTimes).map(Number).sort(function(a,b){return a-b;});
+        var i;
+        for (i = 0; i < time1.length; i++) if (event1[i] === 1) allTimes[time1[i]] = true;
+        for (i = 0; i < time2.length; i++) if (event2[i] === 1) allTimes[time2[i]] = true;
+        var times = Object.keys(allTimes).map(Number).sort(function(a, b) { return a - b; });
+        if (times.length === 0) return null;
 
-        var O1 = 0, E1 = 0; // observed and expected events in group 1
-        var n1 = time1.length, n2 = time2.length;
-        var r1 = n1, r2 = n2;
+        var r1 = time1.length, r2 = time2.length;
+        var sumOminusE = 0, sumVar = 0;
 
         times.forEach(function(t) {
             var d1 = 0, d2 = 0, c1 = 0, c2 = 0;
-            for (var i = 0; i < time1.length; i++) {
+            for (i = 0; i < time1.length; i++) {
                 if (time1[i] === t) { if (event1[i] === 1) d1++; else c1++; }
             }
-            for (var i = 0; i < time2.length; i++) {
+            for (i = 0; i < time2.length; i++) {
                 if (time2[i] === t) { if (event2[i] === 1) d2++; else c2++; }
             }
-            var d = d1 + d2;
-            var r = r1 + r2;
-            if (r > 0 && d > 0) {
-                O1 += d1;
-                E1 += r1 * d / r;
+            var d = d1 + d2, r = r1 + r2;
+            if (r > 1 && d > 0) {
+                var e1 = r1 * d / r;
+                sumOminusE += d1 - e1;
+                // Log-rank variance: n1*n2*d*(r-d) / (r^2*(r-1))
+                sumVar += r1 * r2 * d * (r - d) / (r * r * (r - 1));
             }
             r1 -= (d1 + c1);
             r2 -= (d2 + c2);
         });
 
-        var chi2 = E1 > 0 ? Math.pow(O1 - E1, 2) / E1 : 0;
-        // Add second group contribution
-        var O2 = km2.totalEvents;
-        var E2 = O1 + O2 - E1;
-        if (E2 > 0) chi2 += Math.pow(O2 - E2, 2) / E2;
-
+        var chi2 = sumVar > 0 ? sumOminusE * sumOminusE / sumVar : 0;
         var p = 1 - jStat.chisquare.cdf(chi2, 1);
+
+        var ev1 = 0, ev2 = 0;
+        for (i = 0; i < event1.length; i++) if (event1[i] === 1) ev1++;
+        for (i = 0; i < event2.length; i++) if (event2[i] === 1) ev2++;
+
+        var km1 = Stats.kaplanMeier(time1, event1);
+        var km2 = Stats.kaplanMeier(time2, event2);
 
         return {
             chi2: chi2, df: 1, p: p, significant: p < 0.05,
-            group1: {n: time1.length, events: km1.totalEvents, median: km1.medianSurvival},
-            group2: {n: time2.length, events: km2.totalEvents, median: km2.medianSurvival}
+            group1: { n: time1.length, events: ev1, median: km1 ? km1.medianSurvival : null },
+            group2: { n: time2.length, events: ev2, median: km2 ? km2.medianSurvival : null }
         };
     };
 
     Stats.coxRegression = function(time, event, covariates, covNames) {
-        // Simplified Cox PH: univariate approximation per covariate
+        // Cox PH: univariate partial likelihood per covariate (Breslow approximation)
         if (!time || !event || !covariates || covariates.length === 0) return null;
         var n = time.length;
-        var results = [];
+        var totalEvents = 0;
+        for (var ei = 0; ei < n; ei++) if (event[ei] === 1) totalEvents++;
+        if (totalEvents === 0) return null;
 
-        covariates.forEach(function(cov, idx) {
-            // Split by median of covariate
-            var sorted = cov.slice().sort(function(a,b){return a-b;});
-            var med = sorted[Math.floor(sorted.length/2)];
-            var t1=[], e1=[], t2=[], e2=[];
-            for (var i = 0; i < n; i++) {
-                if (cov[i] <= med) { t1.push(time[i]); e1.push(event[i]); }
-                else { t2.push(time[i]); e2.push(event[i]); }
+        // Sort indices by time ascending
+        var sortIdx = [];
+        for (var si = 0; si < n; si++) sortIdx.push(si);
+        sortIdx.sort(function(a, b) { return time[a] - time[b]; });
+        var T = sortIdx.map(function(i) { return time[i]; });
+        var E = sortIdx.map(function(i) { return event[i]; });
+
+        // Unique event times
+        var eventTimes = [], seenET = {};
+        for (var ei2 = 0; ei2 < n; ei2++) {
+            if (E[ei2] === 1 && !seenET[T[ei2]]) { seenET[T[ei2]] = true; eventTimes.push(T[ei2]); }
+        }
+
+        var results = [];
+        covariates.forEach(function(cov, cidx) {
+            var X = sortIdx.map(function(i) { return cov[i]; });
+
+            // Newton-Raphson for beta (max 50 iterations)
+            var beta = 0;
+            for (var iter = 0; iter < 50; iter++) {
+                var expXB = X.map(function(x) { return Math.exp(Math.max(-500, Math.min(500, beta * x))); });
+                var U = 0, Info = 0;
+                eventTimes.forEach(function(t) {
+                    var dl = 0, sumEvX = 0, s0 = 0, s1 = 0, s2 = 0;
+                    for (var j = 0; j < n; j++) {
+                        if (T[j] === t && E[j] === 1) { dl++; sumEvX += X[j]; }
+                        if (T[j] >= t) { s0 += expXB[j]; s1 += expXB[j] * X[j]; s2 += expXB[j] * X[j] * X[j]; }
+                    }
+                    if (s0 > 0 && dl > 0) {
+                        var eBar = s1 / s0;
+                        U += sumEvX - dl * eBar;
+                        Info += dl * (s2 / s0 - eBar * eBar);
+                    }
+                });
+                if (Info < 1e-10) break;
+                var delta = U / Info;
+                beta += delta;
+                if (Math.abs(delta) < 1e-8) break;
             }
-            var lr = Stats.logRankTest(t1, e1, t2, e2);
-            // Approximate HR from log-rank
-            var events1 = e1.filter(function(e){return e===1;}).length;
-            var events2 = e2.filter(function(e){return e===1;}).length;
-            var rate1 = events1 / (t1.reduce(function(a,b){return a+b;},0) || 1);
-            var rate2 = events2 / (t2.reduce(function(a,b){return a+b;},0) || 1);
-            var hr = rate2 > 0 ? rate1 / rate2 : 1;
-            var b = Math.log(hr);
-            var se = Math.abs(b) > 0 && lr ? Math.abs(b) / Math.sqrt(lr.chi2 + 0.001) : 0;
+
+            // Final information for SE
+            var expXBf = X.map(function(x) { return Math.exp(Math.max(-500, Math.min(500, beta * x))); });
+            var InfoF = 0;
+            eventTimes.forEach(function(t) {
+                var dl = 0, s0 = 0, s1 = 0, s2 = 0;
+                for (var j = 0; j < n; j++) {
+                    if (T[j] === t && E[j] === 1) dl++;
+                    if (T[j] >= t) { s0 += expXBf[j]; s1 += expXBf[j] * X[j]; s2 += expXBf[j] * X[j] * X[j]; }
+                }
+                if (s0 > 0 && dl > 0) { var eBar = s1 / s0; InfoF += dl * (s2 / s0 - eBar * eBar); }
+            });
+
+            var se = InfoF > 0 ? 1 / Math.sqrt(InfoF) : NaN;
+            var hr = Math.exp(beta);
+            var wald = (!isNaN(se) && se > 0) ? (beta / se) * (beta / se) : NaN;
+            var p = !isNaN(wald) ? 1 - jStat.chisquare.cdf(wald, 1) : NaN;
 
             results.push({
-                variable: covNames ? covNames[idx] : 'X'+(idx+1),
-                b: b, se: se, hr: hr,
-                hrCI: Stats.formatCI(hr * Math.exp(-1.96*se), hr * Math.exp(1.96*se)),
-                wald: se > 0 ? Math.pow(b/se, 2) : 0,
-                p: lr ? lr.p : 1,
-                significant: lr ? lr.significant : false
+                variable: covNames ? covNames[cidx] : 'X' + (cidx + 1),
+                b: beta, se: isNaN(se) ? 0 : se, hr: hr,
+                hrCI: (!isNaN(se) && se > 0)
+                    ? Stats.formatCI(hr * Math.exp(-1.96 * se), hr * Math.exp(1.96 * se))
+                    : 'N/A',
+                wald: isNaN(wald) ? 0 : wald,
+                p: isNaN(p) ? 1 : p,
+                significant: !isNaN(p) && p < 0.05
             });
         });
 
-        return {n: n, events: event.filter(function(e){return e===1;}).length, coefficients: results};
+        return { n: n, events: totalEvents, coefficients: results };
     };
 
     Stats.timeSeries = function(values, period) {

@@ -865,6 +865,15 @@
         return values;
     }
 
+    function getListwiseRows(vars) {
+        return (state.data || []).filter(function (row) {
+            return vars.every(function (v) {
+                var val = parseFloat(row[v]);
+                return !isNaN(val) && isFinite(val);
+            });
+        });
+    }
+
     // =========================================================================
     // Utility: Get Checked Checkboxes
     // =========================================================================
@@ -2064,11 +2073,9 @@
         var opts = getChecked('ptt-opt');
         var alpha = parseFloat(getSelectValue('ptt-alpha')) || 0.05;
 
-        var bData = getColumnData(before, true);
-        var aData = getColumnData(after, true);
-        var minLen = Math.min(bData.length, aData.length);
-        bData = bData.slice(0, minLen);
-        aData = aData.slice(0, minLen);
+        var validRows = getListwiseRows([before, after]);
+        var bData = validRows.map(function (r) { return parseFloat(r[before]); });
+        var aData = validRows.map(function (r) { return parseFloat(r[after]); });
 
         // Run assumption check
         runAssumptionCheck('ptt', 'paired-ttest', { before: bData, after: aData });
@@ -2450,11 +2457,9 @@
         if (!before || !after) { alert('Please select both variables.'); return; }
         var alpha = parseFloat(getSelectValue('wx-alpha')) || 0.05;
 
-        var bData = getColumnData(before, true);
-        var aData = getColumnData(after, true);
-        var minLen = Math.min(bData.length, aData.length);
-        bData = bData.slice(0, minLen);
-        aData = aData.slice(0, minLen);
+        var validRows = getListwiseRows([before, after]);
+        var bData = validRows.map(function (r) { return parseFloat(r[before]); });
+        var aData = validRows.map(function (r) { return parseFloat(r[after]); });
 
         // Run assumption check
         runAssumptionCheck('wx', 'paired-ttest', { before: bData, after: aData });
@@ -2577,9 +2582,10 @@
         if (vars.length < 2) { alert('Please select at least 2 variables.'); return; }
         var alpha = parseFloat(getSelectValue('fr-alpha')) || 0.05;
 
-        var dataArrays = vars.map(function (v) { return getColumnData(v, true); });
-        var minLen = Math.min.apply(null, dataArrays.map(function (a) { return a.length; }));
-        dataArrays = dataArrays.map(function (a) { return a.slice(0, minLen); });
+        var validRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function (v) {
+            return validRows.map(function (r) { return parseFloat(r[v]); });
+        });
 
         var result = Stats.friedmanTest(dataArrays);
         if (!result) { alert('Could not compute Friedman test. Check your data.'); return; }
@@ -2763,7 +2769,10 @@
         if (vars.length < 2) { alert('Please select at least 2 variables.'); return; }
         var method = getSelectValue('cor-method') || 'pearson';
 
-        var dataArrays = vars.map(function (v) { return getColumnData(v, true); });
+        var corRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function (v) {
+            return corRows.map(function (r) { return parseFloat(r[v]); });
+        });
 
         // Run assumption check
         runAssumptionCheck('cor', 'correlation', { vars: dataArrays });
@@ -2816,11 +2825,12 @@
         var lrOpts = {};
         document.querySelectorAll('input[name="lr-opt"]').forEach(function(cb) { lrOpts[cb.value] = cb.checked; });
 
-        var yData = getColumnData(dv, true);
-        var xData = ivs.map(function (iv) { return getColumnData(iv, true); });
-        var minLen = Math.min(yData.length, Math.min.apply(null, xData.map(function (x) { return x.length; })));
-        yData = yData.slice(0, minLen);
-        xData = xData.map(function (x) { return x.slice(0, minLen); });
+        var allVars = [dv].concat(ivs);
+        var lrRows = getListwiseRows(allVars);
+        var yData = lrRows.map(function (r) { return parseFloat(r[dv]); });
+        var xData = ivs.map(function (iv) {
+            return lrRows.map(function (r) { return parseFloat(r[iv]); });
+        });
 
         // --- Stepwise / Forward / Backward variable selection ---
         var selectedIVs = ivs.slice();
@@ -3258,11 +3268,12 @@
         var logrOpts = {};
         document.querySelectorAll('input[name="logr-opt"]').forEach(function(cb) { logrOpts[cb.value] = cb.checked; });
 
-        var yData = getColumnData(dv, true);
-        var xData = ivs.map(function (iv) { return getColumnData(iv, true); });
-        var minLen = Math.min(yData.length, Math.min.apply(null, xData.map(function (x) { return x.length; })));
-        yData = yData.slice(0, minLen);
-        xData = xData.map(function (x) { return x.slice(0, minLen); });
+        var logrAllVars = [dv].concat(ivs);
+        var logrRows = getListwiseRows(logrAllVars);
+        var yData = logrRows.map(function (r) { return parseFloat(r[dv]); });
+        var xData = ivs.map(function (iv) {
+            return logrRows.map(function (r) { return parseFloat(r[iv]); });
+        });
 
         var names = ['(Intercept)'].concat(ivs);
         var result = Stats.logisticRegression(yData, xData, names);
@@ -3513,9 +3524,10 @@
         var vars = getSelected('asn-vif-vars');
         if (vars.length < 2) { alert('Please select at least 2 variables.'); return; }
 
-        var dataArrays = vars.map(function (v) { return getColumnData(v, true); });
-        var minLen = Math.min.apply(null, dataArrays.map(function (a) { return a.length; }));
-        dataArrays = dataArrays.map(function (a) { return a.slice(0, minLen); });
+        var vifRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function (v) {
+            return vifRows.map(function (r) { return parseFloat(r[v]); });
+        });
 
         var rows = [];
         vars.forEach(function (targetVar, idx) {
@@ -3555,9 +3567,16 @@
         if (!vars || vars.length === 0) vars = getSelected('rel-vars');
         if (vars.length < 2) { alert('Please select at least 2 variables.'); return; }
 
-        var dataArrays = vars.map(function (v) { return getColumnData(v, true); });
-        var minLen = Math.min.apply(null, dataArrays.map(function (a) { return a.length; }));
-        dataArrays = dataArrays.map(function (a) { return a.slice(0, minLen); });
+        // Listwise deletion: only use rows where ALL selected variables are valid numbers
+        var validRows = (state.data || []).filter(function (row) {
+            return vars.every(function (v) {
+                var val = parseFloat(row[v]);
+                return !isNaN(val) && isFinite(val);
+            });
+        });
+        var dataArrays = vars.map(function (v) {
+            return validRows.map(function (row) { return parseFloat(row[v]); });
+        });
 
         var result = Stats.cronbachAlpha(dataArrays);
         if (!result) { alert('Could not compute Cronbach Alpha. Check your data.'); return; }
@@ -3685,7 +3704,10 @@
     function runFactorAnalysis() {
         var vars = getCheckedVars('efa-picker');
         if (vars.length < 3) { alert('กรุณาเลือกตัวแปรอย่างน้อย 3 ตัว'); return; }
-        var dataArrays = vars.map(function(v) { return getColumnData(v, true); });
+        var efaRows = getListwiseRows(vars);
+        var dataArrays = vars.map(function (v) {
+            return efaRows.map(function (r) { return parseFloat(r[v]); });
+        });
         var result = Stats.factorAnalysis(dataArrays, vars);
         if (!result) { alert('ไม่สามารถวิเคราะห์ได้'); return; }
 
@@ -3824,7 +3846,7 @@
                 'Group A': r.groupA, 'Group B': r.groupB,
                 'Mean A': fmt(r.meanA), 'Mean B': fmt(r.meanB),
                 'Mean Diff': fmt(r.meanDiff),
-                't / F': fmt(r.t || r.F),
+                'q / t / F': fmt(r.q !== undefined ? r.q : (r.t !== undefined ? r.t : r.F)),
                 'p-value': Stats.formatPValue(r.p),
                 'p (adjusted)': Stats.formatPValue(r.pAdjusted || r.p),
                 'Sig.': r.significant ? '✓' : ''
