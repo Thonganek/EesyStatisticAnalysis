@@ -2809,10 +2809,98 @@
             matrixRows.push(row);
         }
 
-        var extras = [{ title: 'Correlation Matrix (' + method.charAt(0).toUpperCase() + method.slice(1) + ')', data: matrixRows }];
+        var methodLabel = method.charAt(0).toUpperCase() + method.slice(1);
+        var extras = [
+            { title: 'Correlation Heatmap (' + methodLabel + ')', html: buildCorrelationHeatmap(result.matrix, result.pMatrix, vars) },
+            { title: 'Correlation Matrix (' + methodLabel + ')', data: matrixRows }
+        ];
 
         state.results['cor'] = { data: pairsRows, title: 'Correlation Pairs', extras: extras };
         displayResults('cor');
+    }
+
+    function buildCorrelationHeatmap(matrix, pMatrix, varNames) {
+        var n = varNames.length;
+        var cellSize = Math.max(48, Math.min(80, Math.floor(480 / n)));
+        var labelW = Math.min(140, Math.max(80, Math.max.apply(null, varNames.map(function(v){ return v.length; })) * 7));
+        var topPad = 100;
+        var svgW = labelW + n * cellSize + 30;
+        var svgH = topPad + n * cellSize + 50;
+
+        function lerp(a, b, t) { return a + (b - a) * t; }
+        function getColor(r) {
+            if (!isFinite(r)) return '#e2e8f0';
+            var t = (r + 1) / 2;
+            var rv, gv, bv;
+            if (t <= 0.5) {
+                var s = t * 2;
+                rv = Math.round(lerp(37,  255, s));
+                gv = Math.round(lerp(99,  255, s));
+                bv = Math.round(lerp(235, 255, s));
+            } else {
+                var s = (t - 0.5) * 2;
+                rv = 255;
+                gv = Math.round(lerp(255, 30,  s));
+                bv = Math.round(lerp(255, 30,  s));
+            }
+            return 'rgb(' + rv + ',' + gv + ',' + bv + ')';
+        }
+        function textColor(r) { return Math.abs(r) > 0.55 ? '#fff' : '#1e293b'; }
+        function truncate(s, max) { return s.length > max ? s.slice(0, max - 1) + '…' : s; }
+
+        var svg = '<div style="overflow-x:auto;padding:4px">'
+            + '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" style="font-family:Arial,sans-serif;display:block">';
+
+        // Column labels (rotated -45°)
+        for (var j = 0; j < n; j++) {
+            var cx = labelW + j * cellSize + cellSize / 2;
+            var cy = topPad - 8;
+            svg += '<text transform="translate(' + cx + ',' + cy + ') rotate(-45)" text-anchor="start" font-size="11" fill="#374151">'
+                + escapeHtml(truncate(varNames[j], 16)) + '</text>';
+        }
+
+        // Row labels + cells
+        for (var i = 0; i < n; i++) {
+            var ry = topPad + i * cellSize;
+            svg += '<text x="' + (labelW - 6) + '" y="' + (ry + cellSize / 2 + 4) + '" text-anchor="end" font-size="11" fill="#374151">'
+                + escapeHtml(truncate(varNames[i], 18)) + '</text>';
+
+            for (var j = 0; j < n; j++) {
+                var cx = labelW + j * cellSize;
+                var r = matrix[i][j];
+                var p = pMatrix[i][j];
+                var color = getColor(r);
+                var tc = textColor(r);
+                var rTxt = (i === j) ? '1.00' : (isFinite(r) ? r.toFixed(2) : '');
+                var sig = (i !== j) ? (p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : '') : '';
+
+                svg += '<rect x="' + cx + '" y="' + ry + '" width="' + cellSize + '" height="' + cellSize
+                    + '" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>';
+                svg += '<text x="' + (cx + cellSize / 2) + '" y="' + (ry + cellSize / 2 + (sig ? -3 : 4))
+                    + '" text-anchor="middle" font-size="12" font-weight="bold" fill="' + tc + '">' + rTxt + '</text>';
+                if (sig) {
+                    svg += '<text x="' + (cx + cellSize / 2) + '" y="' + (ry + cellSize / 2 + 13)
+                        + '" text-anchor="middle" font-size="10" fill="' + tc + '">' + sig + '</text>';
+                }
+            }
+        }
+
+        // Colour legend bar
+        var lgX = labelW, lgY = topPad + n * cellSize + 14, lgW = n * cellSize, lgH = 12;
+        svg += '<defs><linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="0%">'
+            + '<stop offset="0%"   stop-color="rgb(37,99,235)"/>'
+            + '<stop offset="50%"  stop-color="rgb(255,255,255)"/>'
+            + '<stop offset="100%" stop-color="rgb(220,38,38)"/>'
+            + '</linearGradient></defs>';
+        svg += '<rect x="' + lgX + '" y="' + lgY + '" width="' + lgW + '" height="' + lgH
+            + '" fill="url(#cg)" rx="3" stroke="#e2e8f0"/>';
+        svg += '<text x="' + lgX + '" y="' + (lgY + lgH + 13) + '" font-size="10" fill="#6b7280">-1.0</text>';
+        svg += '<text x="' + (lgX + lgW / 2) + '" y="' + (lgY + lgH + 13) + '" text-anchor="middle" font-size="10" fill="#6b7280">0</text>';
+        svg += '<text x="' + (lgX + lgW) + '" y="' + (lgY + lgH + 13) + '" text-anchor="end" font-size="10" fill="#6b7280">+1.0</text>';
+        svg += '<text x="' + (lgX + lgW + 5) + '" y="' + (lgY + lgH / 2 + 4) + '" font-size="9" fill="#9ca3af">  * p&lt;.05  ** p&lt;.01  *** p&lt;.001</text>';
+
+        svg += '</svg></div>';
+        return svg;
     }
 
     // =========================================================================
