@@ -469,6 +469,8 @@
             {id: 'mcn-after-picker', filter: 'all', label: 'After (0/1)'},
             {id: 'fe-var1-picker', filter: 'all', label: 'Variable 1'},
             {id: 'fe-var2-picker', filter: 'all', label: 'Variable 2'},
+            {id: 'orr-var1-picker', filter: 'all', label: 'Variable 1 — Exposure'},
+            {id: 'orr-var2-picker', filter: 'all', label: 'Variable 2 — Outcome'},
             {id: 'cq-picker', filter: 'numeric', label: 'Conditions (0/1, 3+)'},
             // Demographics
             {id: 'demo-picker', filter: 'all', label: 'เลือกตัวแปรคุณลักษณะส่วนบุคคล'},
