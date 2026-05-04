@@ -3623,56 +3623,106 @@
         if (!var1 || !var2) { alert('Please select both variables.'); return; }
 
         var orRows = getListwiseRows([var1, var2], []);
-        var v1 = orRows.map(function(r){return r[var1];});
-        var v2 = orRows.map(function(r){return r[var2];});
+        var v1 = orRows.map(function(r) { return r[var1]; });
+        var v2 = orRows.map(function(r) { return r[var2]; });
 
-        // Build 2x2 contingency table
+        // Collect categories (preserve encounter order for labeling)
         var cats1 = [], cats2 = [];
         var c1Set = {}, c2Set = {};
-        for (var i = 0; i < Math.min(v1.length, v2.length); i++) {
-            var a = String(v1[i]), b = String(v2[i]);
-            if (!c1Set[a]) { c1Set[a] = true; cats1.push(a); }
-            if (!c2Set[b]) { c2Set[b] = true; cats2.push(b); }
+        for (var i = 0; i < v1.length; i++) {
+            var s1 = String(v1[i]), s2 = String(v2[i]);
+            if (!c1Set[s1]) { c1Set[s1] = true; cats1.push(s1); }
+            if (!c2Set[s2]) { c2Set[s2] = true; cats2.push(s2); }
         }
 
         if (cats1.length !== 2 || cats2.length !== 2) {
-            alert('Odds Ratio requires exactly 2 categories per variable. Got ' + cats1.length + ' and ' + cats2.length + '.');
+            alert('OR / RR requires exactly 2 categories per variable.\nExposure: ' + cats1.length + ' categories, Outcome: ' + cats2.length + ' categories.');
             return;
         }
 
+        // Build 2×2 table: rows = exposure, cols = outcome
         var table = [[0, 0], [0, 0]];
-        for (var i = 0; i < Math.min(v1.length, v2.length); i++) {
+        for (var i = 0; i < v1.length; i++) {
             var r = cats1.indexOf(String(v1[i]));
             var c = cats2.indexOf(String(v2[i]));
             if (r >= 0 && c >= 0) table[r][c]++;
         }
 
+        // a=exposed+outcome, b=exposed+no outcome, c=unexposed+outcome, d=unexposed+no outcome
         var a = table[0][0], b = table[0][1], c = table[1][0], d = table[1][1];
-        var or = (b * c) > 0 ? (a * d) / (b * c) : NaN;
-        var logOR = !isNaN(or) && or > 0 ? Math.log(or) : NaN;
-        var seLogOR = NaN;
-        if (a > 0 && b > 0 && c > 0 && d > 0) {
-            seLogOR = Math.sqrt(1 / a + 1 / b + 1 / c + 1 / d);
+        var n = a + b + c + d;
+
+        var result = Stats.oddsRatioRR(a, b, c, d);
+        if (!result) { alert('ไม่สามารถคำนวณได้ — ตรวจสอบว่าไม่มีเซลล์ที่มีค่า 0'); return; }
+
+        // Chi-square test for independence
+        var chi2Val = (n > 0 && (a+b) > 0 && (c+d) > 0 && (a+c) > 0 && (b+d) > 0)
+            ? n * Math.pow(Math.abs(a*d - b*c) - n/2, 2) / ((a+b)*(c+d)*(a+c)*(b+d))  // Yates' correction
+            : NaN;
+        var chi2NoYates = (n > 0 && (a+b) > 0 && (c+d) > 0 && (a+c) > 0 && (b+d) > 0)
+            ? n * Math.pow(a*d - b*c, 2) / ((a+b)*(c+d)*(a+c)*(b+d))
+            : NaN;
+        var pChi = !isNaN(chi2NoYates) ? 1 - jStat.chisquare.cdf(chi2NoYates, 1) : NaN;
+        var pYates = !isNaN(chi2Val) ? 1 - jStat.chisquare.cdf(chi2Val, 1) : NaN;
+
+        // Interpretation helpers
+        function interpOR(or) {
+            if (isNaN(or)) return 'N/A';
+            if (or > 1) return 'เพิ่มโอกาส (Increased odds)';
+            if (or < 1) return 'ลดโอกาส (Decreased odds)';
+            return 'ไม่มีความสัมพันธ์ (No effect)';
         }
-        var ci95Lo = !isNaN(logOR) && !isNaN(seLogOR) ? Math.exp(logOR - 1.96 * seLogOR) : NaN;
-        var ci95Hi = !isNaN(logOR) && !isNaN(seLogOR) ? Math.exp(logOR + 1.96 * seLogOR) : NaN;
+        function interpRR(rr) {
+            if (isNaN(rr)) return 'N/A';
+            if (rr > 1) return 'เพิ่มความเสี่ยง (Increased risk)';
+            if (rr < 1) return 'ลดความเสี่ยง (Decreased risk)';
+            return 'ไม่มีความสัมพันธ์ (No effect)';
+        }
 
-        var extras = [{
-            title: '2x2 Contingency Table',
-            data: [
-                { '': cats1[0], [cats2[0]]: a, [cats2[1]]: b },
-                { '': cats1[1], [cats2[0]]: c, [cats2[1]]: d }
-            ]
-        }];
+        var extras = [
+            {
+                title: '2×2 Contingency Table',
+                data: [
+                    { 'Exposure \\ Outcome': cats1[0] + ' (Exposed)',   [cats2[0] + ' (Outcome)']: a, [cats2[1] + ' (No Outcome)']: b, 'Total': a + b },
+                    { 'Exposure \\ Outcome': cats1[1] + ' (Unexposed)', [cats2[0] + ' (Outcome)']: c, [cats2[1] + ' (No Outcome)']: d, 'Total': c + d },
+                    { 'Exposure \\ Outcome': 'Total',                   [cats2[0] + ' (Outcome)']: a+c, [cats2[1] + ' (No Outcome)']: b+d, 'Total': n }
+                ]
+            },
+            {
+                title: 'Chi-Square Test',
+                data: [
+                    { 'Test': 'Pearson Chi-Square', 'χ²': fmt(chi2NoYates), 'df': 1, 'p': Stats.formatPValue(pChi), 'Sig.': pChi < 0.05 ? '*' : '' },
+                    { 'Test': "Yates' Continuity Correction", 'χ²': fmt(chi2Val), 'df': 1, 'p': Stats.formatPValue(pYates), 'Sig.': pYates < 0.05 ? '*' : '' }
+                ]
+            }
+        ];
 
-        var mainRows = [{
-            'Odds Ratio': fmt(or),
-            'ln(OR)': fmt(logOR),
-            'SE(ln OR)': fmt(seLogOR),
-            '95% CI': Stats.formatCI ? Stats.formatCI(ci95Lo, ci95Hi) : '[' + fmt(ci95Lo) + ', ' + fmt(ci95Hi) + ']'
-        }];
+        var mainRows = [
+            {
+                'Measure': 'Odds Ratio (OR)',
+                'Value': fmt(result.or),
+                '95% CI': result.orCI,
+                'Interpretation': interpOR(result.or)
+            },
+            {
+                'Measure': 'Risk Ratio / Relative Risk (RR)',
+                'Value': fmt(result.rr),
+                '95% CI': result.rrCI,
+                'Interpretation': interpRR(result.rr)
+            },
+            {
+                'Measure': 'Risk Difference (RD)',
+                'Value': fmt(a/(a+b) - c/(c+d)),
+                '95% CI': (function() {
+                    var p1 = a/(a+b), p2 = c/(c+d), n1 = a+b, n2 = c+d;
+                    var se = Math.sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2);
+                    return Stats.formatCI((p1-p2) - 1.96*se, (p1-p2) + 1.96*se);
+                })(),
+                'Interpretation': (a/(a+b) - c/(c+d)) > 0 ? 'Exposed group has higher risk' : (a/(a+b) - c/(c+d)) < 0 ? 'Exposed group has lower risk' : 'No difference'
+            }
+        ];
 
-        state.results['cd'] = { data: mainRows, title: 'Odds Ratio', extras: extras };
+        state.results['cd'] = { data: mainRows, title: 'Odds Ratio & Risk Ratio (N = ' + n + ')', extras: extras };
         displayResults('cd');
     }
 

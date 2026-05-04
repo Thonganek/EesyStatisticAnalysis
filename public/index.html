@@ -2024,7 +2024,7 @@
 
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('cd', 'cohen-tab')">Cohen's d</button>
-                <button class="tab-btn" onclick="switchTab('cd', 'odds-tab')">Odds Ratio</button>
+                <button class="tab-btn" onclick="switchTab('cd', 'odds-tab')">Odds Ratio / Risk Ratio</button>
             </div>
 
             <div id="cd-cohen-tab" class="tab-content">
@@ -2046,24 +2046,22 @@
             <div id="cd-odds-tab" class="tab-content">
                 <div class="card">
                     <p style="margin:0 0 12px;color:#64748b;font-size:0.85rem">
-                        Select two binary (2-category) variables to build a 2x2 contingency table:<br>
-                        <strong>a</strong> = Exposed + Outcome &nbsp;|&nbsp;
-                        <strong>b</strong> = Exposed + No Outcome<br>
-                        <strong>c</strong> = Unexposed + Outcome &nbsp;|&nbsp;
-                        <strong>d</strong> = Unexposed + No Outcome<br>
-                        Results: OR, 95% CI of OR
+                        เลือกตัวแปร 2 ตัว (แต่ละตัวต้องมีค่าได้ 2 ระดับ) เพื่อสร้างตาราง 2×2:<br>
+                        <strong>Row</strong> = ตัวแปร Exposure (รับสัมผัส / ไม่รับสัมผัส) &nbsp;|&nbsp;
+                        <strong>Column</strong> = ตัวแปร Outcome (เกิดโรค / ไม่เกิดโรค)<br><br>
+                        ผลลัพธ์: <strong>Odds Ratio (OR)</strong>, <strong>Risk Ratio / Relative Risk (RR)</strong>, 95% CI, Chi-Square
                     </p>
                     <div class="form-group">
-                        <label for="cd-or-var1">Variable 1 (Exposure)</label>
+                        <label for="cd-or-var1">Variable 1 — Exposure (Row)</label>
                         <select id="cd-or-var1" class="var-select" style="display:none"></select>
                         <div id="cd-or-var1-picker"></div>
                     </div>
                     <div class="form-group">
-                        <label for="cd-or-var2">Variable 2 (Outcome)</label>
+                        <label for="cd-or-var2">Variable 2 — Outcome (Column)</label>
                         <select id="cd-or-var2" class="var-select" style="display:none"></select>
                         <div id="cd-or-var2-picker"></div>
                     </div>
-                    <button class="btn btn-primary" onclick="runAnalysis('effect-odds')">Calculate Odds Ratio</button>
+                    <button class="btn btn-primary" onclick="runAnalysis('effect-odds')">Calculate OR &amp; RR</button>
                 </div>
             </div>
 
