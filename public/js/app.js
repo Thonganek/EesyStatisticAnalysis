@@ -277,7 +277,8 @@
             'cochran-q': 'cq',
             'power-analysis':'pwr','welch-anova':'wa','dunnett':'dnt','median-test':'mdt',
             'runs-test':'run','ks2':'ks2','cluster':'cls','discriminant':'da','missing':'miss','qqplot':'qq',
-            'survival':'surv','time-series':'ts'
+            'survival':'surv','time-series':'ts',
+            'spatial':'spa'
         };
     }
 
@@ -488,6 +489,10 @@
             {id:'surv-group-picker',filter:'all',label:'Group (optional)'},
             {id:'surv-cov-picker',filter:'numeric',label:'Covariates'},
             {id:'ts-var-picker',filter:'numeric',label:'Value Variable'},
+            {id:'spa-lat-picker',filter:'numeric',label:'Latitude'},
+            {id:'spa-lng-picker',filter:'numeric',label:'Longitude'},
+            {id:'spa-val-picker',filter:'numeric',label:'Value (optional)'},
+            {id:'spa-label-picker',filter:'all',label:'Label (optional)'},
         ];
         pickerConfigs.forEach(function(cfg) {
             var el = document.getElementById(cfg.id);
@@ -1067,6 +1072,7 @@
                 case 'qqplot': runQQPlot(); break;
                 case 'survival': runSurvival(); break;
                 case 'time-series': runTimeSeries(); break;
+                case 'spatial': runSpatial(); break;
                 case 'sample-size': runSampleSize(); break;
                 case 'one-sample-ttest': runOneSampleTTest(); break;
                 case 'sign-test': runSignTest(); break;
@@ -6342,6 +6348,180 @@
         alert('Path Analysis requires SEM engine. กรุณาใช้ AI Chat เพื่อขอคำแนะนำหรือใช้ Multiple Regression เป็นทางเลือก');
     }
 
+    // =========================================================================
+    // SPATIAL ANALYSIS
+    // =========================================================================
+
+    var _gmLoaded = false;
+    var _gmLoading = false;
+    var _gmCallbacks = [];
+
+    function loadGoogleMapsScript(cb) {
+        if (_gmLoaded) { cb(); return; }
+        _gmCallbacks.push(cb);
+        if (_gmLoading) return;
+        _gmLoading = true;
+        window._gmCallback = function () {
+            _gmLoaded = true;
+            _gmLoading = false;
+            _gmCallbacks.forEach(function(fn){ fn(); });
+            _gmCallbacks = [];
+        };
+        var s = document.createElement('script');
+        s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyA1xmTQ_hd4n-FPyqIiUqPhAElgMRdYfUo&libraries=visualization&callback=_gmCallback';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+    }
+
+    function runSpatial() {
+        var latName = getCheckedVars('spa-lat-picker')[0];
+        var lngName = getCheckedVars('spa-lng-picker')[0];
+        if (!latName || !lngName) { alert('กรุณาเลือก Latitude และ Longitude Variable'); return; }
+        var valName = (getCheckedVars('spa-val-picker') || [])[0] || null;
+        var labelName = (getCheckedVars('spa-label-picker') || [])[0] || null;
+
+        var points = [];
+        state.data.forEach(function(row) {
+            var lat = parseFloat(row[latName]);
+            var lng = parseFloat(row[lngName]);
+            if (isNaN(lat) || isNaN(lng)) return;
+            var val = valName ? parseFloat(row[valName]) : 1;
+            if (isNaN(val)) val = 1;
+            var label = labelName ? String(row[labelName] || '') : '';
+            points.push({lat: lat, lng: lng, val: val, label: label});
+        });
+
+        if (points.length === 0) { alert('ไม่พบข้อมูลพิกัดที่ valid'); return; }
+
+        // Spatial statistics
+        var n = points.length;
+        var centLat = points.reduce(function(s,p){return s+p.lat;},0) / n;
+        var centLng = points.reduce(function(s,p){return s+p.lng;},0) / n;
+
+        var R = 6371; // Earth radius km
+        var toRad = function(d){ return d * Math.PI / 180; };
+        // Standard distance (weighted)
+        var sumW = points.reduce(function(s,p){return s+p.val;},0);
+        var stdDist = 0;
+        points.forEach(function(p) {
+            var dlat = toRad(p.lat - centLat);
+            var dlng = toRad(p.lng - centLng);
+            var a = Math.sin(dlat/2)*Math.sin(dlat/2) + Math.cos(toRad(centLat))*Math.cos(toRad(p.lat))*Math.sin(dlng/2)*Math.sin(dlng/2);
+            var dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            stdDist += p.val * dist * dist;
+        });
+        stdDist = Math.sqrt(stdDist / sumW);
+
+        var minLat = Math.min.apply(null, points.map(function(p){return p.lat;}));
+        var maxLat = Math.max.apply(null, points.map(function(p){return p.lat;}));
+        var minLng = Math.min.apply(null, points.map(function(p){return p.lng;}));
+        var maxLng = Math.max.apply(null, points.map(function(p){return p.lng;}));
+
+        var statRows = [
+            {Statistic: 'Number of Points (N)', Value: n},
+            {Statistic: 'Centroid Latitude', Value: fmt(centLat, 6)},
+            {Statistic: 'Centroid Longitude', Value: fmt(centLng, 6)},
+            {Statistic: 'Standard Distance (km)', Value: fmt(stdDist, 3)},
+            {Statistic: 'Bounding Box — Lat', Value: fmt(minLat,6) + ' to ' + fmt(maxLat,6)},
+            {Statistic: 'Bounding Box — Lng', Value: fmt(minLng,6) + ' to ' + fmt(maxLng,6)},
+            {Statistic: 'Lat Range (°)', Value: fmt(maxLat - minLat, 4)},
+            {Statistic: 'Lng Range (°)', Value: fmt(maxLng - minLng, 4)}
+        ];
+
+        if (valName) {
+            var vals = points.map(function(p){return p.val;});
+            statRows.push({Statistic: 'Value Mean', Value: fmt(jStat.mean(vals))});
+            statRows.push({Statistic: 'Value S.D.', Value: fmt(jStat.stdev(vals))});
+            statRows.push({Statistic: 'Value Min', Value: fmt(Math.min.apply(null,vals))});
+            statRows.push({Statistic: 'Value Max', Value: fmt(Math.max.apply(null,vals))});
+        }
+
+        state.results['spa'] = {
+            data: statRows,
+            title: 'Spatial Analysis: N=' + n + ' points',
+            extras: [],
+            _spatialPoints: points,
+            _centLat: centLat,
+            _centLng: centLng,
+            _mode: document.getElementById('spa-mode').value
+        };
+        displayResults('spa');
+
+        // Show map container and init map
+        var mapCont = document.getElementById('spa-map-container');
+        mapCont.style.display = 'block';
+        loadGoogleMapsScript(function() {
+            initSpatialMap(points, centLat, centLng, document.getElementById('spa-mode').value);
+        });
+    }
+
+    function initSpatialMap(points, centLat, centLng, mode) {
+        var mapCont = document.getElementById('spa-map-container');
+        mapCont.innerHTML = '';
+        var mapDiv = document.createElement('div');
+        mapDiv.style.width = '100%';
+        mapDiv.style.height = '100%';
+        mapCont.appendChild(mapDiv);
+
+        var map = new google.maps.Map(mapDiv, {
+            center: {lat: centLat, lng: centLng},
+            zoom: 10,
+            mapTypeId: 'roadmap'
+        });
+
+        // Centroid marker (blue)
+        new google.maps.Marker({
+            position: {lat: centLat, lng: centLng},
+            map: map,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 10,
+                fillColor: '#2563eb',
+                fillOpacity: 0.9,
+                strokeColor: '#fff',
+                strokeWeight: 2
+            },
+            title: 'Centroid (' + centLat.toFixed(5) + ', ' + centLng.toFixed(5) + ')',
+            zIndex: 999
+        });
+
+        if (mode === 'markers' || mode === 'both') {
+            points.forEach(function(p) {
+                var marker = new google.maps.Marker({
+                    position: {lat: p.lat, lng: p.lng},
+                    map: map,
+                    title: p.label || ('(' + p.lat.toFixed(4) + ', ' + p.lng.toFixed(4) + ')')
+                });
+                if (p.label) {
+                    var infoWindow = new google.maps.InfoWindow({
+                        content: '<div style="font-size:13px;padding:4px"><strong>' + p.label + '</strong><br>Lat: ' + p.lat.toFixed(5) + '<br>Lng: ' + p.lng.toFixed(5) + '</div>'
+                    });
+                    marker.addListener('click', function() {
+                        infoWindow.open(map, marker);
+                    });
+                }
+            });
+        }
+
+        if (mode === 'heatmap' || mode === 'both') {
+            var heatData = points.map(function(p) {
+                return {location: new google.maps.LatLng(p.lat, p.lng), weight: p.val};
+            });
+            new google.maps.visualization.HeatmapLayer({
+                data: heatData,
+                map: map,
+                radius: 30,
+                opacity: 0.7
+            });
+        }
+
+        // Auto-fit bounds
+        var bounds = new google.maps.LatLngBounds();
+        points.forEach(function(p){ bounds.extend({lat: p.lat, lng: p.lng}); });
+        map.fitBounds(bounds);
+    }
+
     // Expose global functions for onclick handlers in HTML
     // =========================================================================
 
@@ -6399,6 +6579,7 @@
     window.closeLambdaTable = closeLambdaTable;
     window.renderLambdaTable = renderLambdaTable;
     window.selectLambdaValue = selectLambdaValue;
+    window.initSpatialMap = initSpatialMap;
 
     // =========================================================================
     // Sample Size Calculator — toggle inputs based on formula

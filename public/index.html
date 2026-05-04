@@ -251,6 +251,7 @@
                     <button class="menu-item" onclick="navigateTo('survival')">Survival Analysis</button>
                     <button class="menu-item" onclick="navigateTo('time-series')">Time Series</button>
                     <button class="menu-item" onclick="navigateTo('path-analysis')">Path Analysis</button>
+                    <button class="menu-item" onclick="navigateTo('spatial')">🗺️ Spatial Analysis (Map)</button>
                 </div>
             </div>
 
@@ -3341,6 +3342,73 @@
         <div class="ai-section"><div class="interp-options"><label class="form-label">📝 รูปแบบ</label><select id="path-interp-format" class="form-select interp-select"><option value="chapter4" selected>บทที่ 4</option><option value="explain">อธิบายง่าย</option></select></div>
             <button class="btn btn-ai" onclick="aiAnalyze('path')">🤖 AI วิเคราะห์ผล</button><div id="path-ai-result" class="ai-result-box" style="display:none"></div></div>
         <div class="export-area"><button class="btn btn-export" onclick="exportExcel('path')">📥 Excel</button><button class="btn btn-export" onclick="exportWord('path')">📥 Word</button></div></div>
+</div>
+
+<!-- ================================================== -->
+<!-- PAGE: SPATIAL ANALYSIS                              -->
+<!-- ================================================== -->
+<div class="page" id="page-spatial">
+    <h2 class="page-title">🗺️ Spatial Analysis (Map)</h2>
+    <details class="stat-guide"><summary>📖 เมื่อไหร่ควรใช้?</summary>
+        <div class="stat-guide-content">
+            <p><strong>วัตถุประสงค์:</strong> วิเคราะห์การกระจายเชิงพื้นที่ของข้อมูล แสดงจุดบนแผนที่ Google Maps</p>
+            <p><strong>เงื่อนไข:</strong> ข้อมูลต้องมีคอลัมน์ Latitude และ Longitude</p>
+            <p><strong>โหมดแสดงผล:</strong></p>
+            <ul>
+                <li><strong>Markers</strong> — แสดงจุดพร้อม Label บนแผนที่</li>
+                <li><strong>Heatmap</strong> — แสดงความหนาแน่นเชิงพื้นที่</li>
+                <li><strong>Markers + Heatmap</strong> — รวมทั้งสองโหมด</li>
+            </ul>
+            <p><strong>ผลลัพธ์:</strong> Centroid, Standard Distance, Bounding Box, สถิติเชิงพื้นที่</p>
+        </div></details>
+    <div class="card">
+        <div class="form-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <div class="form-group" style="flex:1;min-width:180px">
+                <label>Latitude Variable</label>
+                <div id="spa-lat-picker"></div>
+            </div>
+            <div class="form-group" style="flex:1;min-width:180px">
+                <label>Longitude Variable</label>
+                <div id="spa-lng-picker"></div>
+            </div>
+            <div class="form-group" style="flex:1;min-width:180px">
+                <label>Value Variable (optional — สำหรับ Heatmap weight)</label>
+                <div id="spa-val-picker"></div>
+            </div>
+            <div class="form-group" style="flex:1;min-width:180px">
+                <label>Label Variable (optional — แสดง popup)</label>
+                <div id="spa-label-picker"></div>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+            <label>Display Mode</label>
+            <select id="spa-mode" class="form-select" style="width:auto;min-width:200px">
+                <option value="markers">📍 Markers</option>
+                <option value="heatmap">🔥 Heatmap</option>
+                <option value="both" selected>📍+🔥 Markers + Heatmap</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" onclick="runAnalysis('spatial')">🗺️ Run Spatial Analysis</button>
+    </div>
+    <div id="spa-results" class="results-area">
+        <div id="spa-map-container" style="width:100%;height:520px;border-radius:12px;overflow:hidden;margin-bottom:16px;display:none"></div>
+        <div id="spa-extras"></div>
+        <div id="spa-table"></div>
+        <div class="ai-section">
+            <div class="interp-options">
+                <label class="form-label">📝 รูปแบบ</label>
+                <select id="spa-interp-format" class="form-select interp-select">
+                    <option value="chapter4" selected>บทที่ 4</option>
+                    <option value="explain">อธิบายง่าย</option>
+                </select>
+            </div>
+            <button class="btn btn-ai" onclick="aiAnalyze('spa')">🤖 AI วิเคราะห์ผล</button>
+            <div id="spa-ai-result" class="ai-result-box" style="display:none"></div>
+        </div>
+        <div class="export-area">
+            <button class="btn btn-export" onclick="exportExcel('spa')">📥 Excel</button>
+        </div>
+    </div>
 </div>
 
         <!-- ================================================== -->
