@@ -3377,8 +3377,22 @@
             return logrRows.map(function (r) { return parseFloat(r[iv]); });
         });
 
-        var names = ['(Intercept)'].concat(ivs);
-        var result = Stats.logisticRegression(yData, xData, names);
+        var selectedIVs = ivs.slice();
+        var selectedXData = xData.slice();
+        var selectionSteps = [];
+        if (method !== 'enter') {
+            var logrSelection = _selectLogisticVariables(yData, xData, ivs, method, 0.05, 0.10);
+            selectedIVs = logrSelection.selectedVars;
+            selectedXData = logrSelection.selectedXData;
+            selectionSteps = logrSelection.steps;
+            if (selectedIVs.length === 0) {
+                alert('No variables met the logistic regression selection criteria.');
+                return;
+            }
+        }
+
+        var names = ['(Intercept)'].concat(selectedIVs);
+        var result = Stats.logisticRegression(yData, selectedXData, names);
         if (!result) { alert('Could not compute logistic regression. Check your data.'); return; }
         var yBinary = result.encodedY || yData.map(function(v){return v>=0.5?1:0;});
 
@@ -3400,10 +3414,10 @@
         var logrAssumptionEl = document.getElementById('logr-assumptions');
         if (logrAssumptionEl) {
             var n = yData.length;
-            var nOk = n >= 10 * (ivs.length + 1);
+            var nOk = n >= 10 * (selectedIVs.length + 1);
             var checksHtml = '<div class="assumption-panel"><h4>🔍 Assumption Check</h4>';
             checksHtml += '<table class="result-table"><thead><tr><th>Check</th><th>Result</th><th>Status</th></tr></thead><tbody>';
-            checksHtml += '<tr><td>Sample Size (10 per predictor)</td><td>N=' + n + ', needed>=' + (10*(ivs.length+1)) + '</td><td>' + (nOk ? '✅' : '⚠️') + '</td></tr>';
+            checksHtml += '<tr><td>Sample Size (10 per predictor)</td><td>N=' + n + ', needed>=' + (10*(selectedIVs.length+1)) + '</td><td>' + (nOk ? '✅' : '⚠️') + '</td></tr>';
             checksHtml += '<tr><td>DV is Binary (0/1)</td><td>Check data</td><td>ℹ️</td></tr>';
             checksHtml += '</tbody></table></div>';
             logrAssumptionEl.innerHTML = checksHtml;
@@ -3419,7 +3433,9 @@
                 'Method': methodLabel,
                 'Description': methodDescs[method] || method,
                 'DV': dv,
-                'IVs': ivs.join(', '),
+                'Candidate IVs': ivs.join(', '),
+                'Selected IVs': selectedIVs.join(', '),
+                'Variables Entered': selectedIVs.length,
                 'N': yBinary.length,
                 'N (Event=1)': yBinary.filter(function(v){return v===1;}).length,
                 'N (Event=0)': yBinary.filter(function(v){return v===0;}).length,
@@ -3427,6 +3443,9 @@
                 'Iterations': result.iterations || 'N/A'
             }]
         });
+        if (selectionSteps.length > 0) {
+            extras.push({ title: 'Variable Selection Steps', data: selectionSteps });
+        }
 
         // 2. Model Summary
         var n = yBinary.length;
@@ -3434,9 +3453,9 @@
         var n0 = n - n1;
         var nullLL = result.nullLogLikelihood;
         if (!isFinite(nullLL)) nullLL = n1 > 0 && n0 > 0 ? n1 * Math.log(n1/n) + n0 * Math.log(n0/n) : NaN;
-        var modelLL = isFinite(result.logLikelihood) ? result.logLikelihood : (result.aic ? -(result.aic/2 - ivs.length - 1) : nullLL);
+        var modelLL = isFinite(result.logLikelihood) ? result.logLikelihood : (result.aic ? -(result.aic/2 - selectedIVs.length - 1) : nullLL);
         var chiSq = -2 * (nullLL - modelLL);
-        var dfChi = ivs.length;
+        var dfChi = selectedIVs.length;
         var pChi = isFinite(chiSq) && chiSq > 0 ? (1 - jStat.chisquare.cdf(chiSq, dfChi)) : 1;
         var coxSnell = isFinite(chiSq) ? 1 - Math.exp(-chiSq / n) : NaN;
         var nagelkerke = coxSnell > 0 && isFinite(nullLL) ? coxSnell / (1 - Math.exp(2 * nullLL / n)) : NaN;
@@ -3472,7 +3491,7 @@
             yBinary.forEach(function(y,i) {
                 var prob = result.probabilities ? result.probabilities[i] : (function() {
                     var pred = result.coefficients[0].b;
-                    xData.forEach(function(xd,j) { pred += result.coefficients[j+1].b * xd[i]; });
+                    selectedXData.forEach(function(xd,j) { pred += result.coefficients[j+1].b * xd[i]; });
                     return 1 / (1 + Math.exp(-pred));
                 })();
                 var predClass = prob >= 0.5 ? 1 : 0;
@@ -3490,6 +3509,36 @@
                     { 'Observed': 'Overall', 'Predicted 0': '', 'Predicted 1': '', '% Correct': fmt((tp+tn)/n*100,1)+'%' }
                 ]
             });
+        }
+
+        if (logrOpts.hosmer && result.probabilities) {
+            var hl = _hosmerLemeshow(yBinary, result.probabilities, 10);
+            if (hl) {
+                extras.push({
+                    title: 'Hosmer-Lemeshow Test',
+                    data: [{
+                        'Chi-square': fmt(hl.chiSquare),
+                        df: hl.df,
+                        'Sig.': Stats.formatPValue(hl.p),
+                        Interpretation: hl.p >= 0.05 ? 'Good fit' : 'Poor fit'
+                    }]
+                });
+                extras.push({ title: 'Hosmer-Lemeshow Groups', data: hl.groups });
+            }
+        }
+
+        if (logrOpts.correlation && selectedIVs.length > 0) {
+            var corrVars = ['Event(1)'].concat(selectedIVs);
+            var corrData = [yBinary].concat(selectedXData);
+            var corr = Stats.correlation(corrData, corrVars, 'pearson');
+            if (corr && corr.matrix) {
+                var corrRows = corrVars.map(function(v, i) {
+                    var row = { Variable: v };
+                    corrVars.forEach(function(v2, j) { row[v2] = fmt(corr.matrix[i][j]); });
+                    return row;
+                });
+                extras.push({ title: 'Correlation Matrix (Pearson)', data: corrRows });
+            }
         }
 
         // 5. Coefficients (Variables in the Equation)
@@ -3555,7 +3604,7 @@
         var logrWarnings = [];
         var nEvents = yBinary.filter(function(v){return v===1;}).length;
         var nNonEvents = n - nEvents;
-        var epp = Math.min(nEvents, nNonEvents) / ivs.length; // events per predictor
+        var epp = Math.min(nEvents, nNonEvents) / selectedIVs.length; // events per predictor
         if (epp < 10) logrWarnings.push({'ประเด็น': 'Events Per Predictor (EPP) ต่ำ', 'รายละเอียด': 'EPP = ' + fmt(epp,1) + ' (แนะนำ >= 10)', 'ระดับ': '🔴 สำคัญ', 'คำแนะนำ': 'ผลอาจไม่เสถียร ควรเพิ่มขนาดตัวอย่าง หรือลดจำนวนตัวแปรอิสระ'});
         else if (epp < 20) logrWarnings.push({'ประเด็น': 'Events Per Predictor พอใช้', 'รายละเอียด': 'EPP = ' + fmt(epp,1) + ' (เหมาะสม >= 20)', 'ระดับ': '🟡 ระวัง', 'คำแนะนำ': 'ใช้ได้แต่ผลอาจมี bias เล็กน้อย'});
         if (result.accuracy < 0.6) logrWarnings.push({'ประเด็น': 'Model Accuracy ต่ำ', 'รายละเอียด': 'Accuracy = ' + fmt(result.accuracy*100,1) + '%', 'ระดับ': '🔴 สำคัญ', 'คำแนะนำ': 'โมเดลพยากรณ์ได้ไม่ดี ควรพิจารณาเพิ่มตัวแปร หรือตรวจสอบข้อมูล'});
@@ -3572,6 +3621,176 @@
 
         state.results['logr'] = { data: mainRows, title: 'Variables in the Equation (Method: ' + methodLabel + ')', extras: extras };
         displayResults('logr');
+    }
+
+    function _selectLogisticVariables(yData, allXData, allIVNames, method, pIn, pOut) {
+        var steps = [];
+        var selectedIdx = method.indexOf('backward') === 0 ? allIVNames.map(function(_, i) { return i; }) : [];
+        var remaining = method.indexOf('backward') === 0 ? [] : allIVNames.map(function(_, i) { return i; });
+        var useLR = method.indexOf('-lr') > -1;
+
+        function nullLogLikelihood(y) {
+            var values = y.map(Number).filter(function(v) { return isFinite(v); });
+            var uniq = [];
+            values.forEach(function(v) { if (uniq.indexOf(v) < 0) uniq.push(v); });
+            uniq.sort(function(a, b) { return a - b; });
+            if (uniq.length !== 2) return NaN;
+            var n = values.length;
+            var n1 = values.filter(function(v) { return v === uniq[1]; }).length;
+            var n0 = n - n1;
+            return n1 > 0 && n0 > 0 ? n1 * Math.log(n1 / n) + n0 * Math.log(n0 / n) : NaN;
+        }
+
+        function runModel(idxArr) {
+            if (idxArr.length === 0) {
+                var ll0 = nullLogLikelihood(yData);
+                return isFinite(ll0) ? { logLikelihood: ll0, nullLogLikelihood: ll0, aic: -2 * ll0 + 2, coefficients: [] } : null;
+            }
+            var xs = idxArr.map(function(i) { return allXData[i]; });
+            var names = ['(Intercept)'].concat(idxArr.map(function(i) { return allIVNames[i]; }));
+            return Stats.logisticRegression(yData, xs, names);
+        }
+
+        function lrPValue(fullModel, reducedModel) {
+            if (!fullModel || !reducedModel || !isFinite(fullModel.logLikelihood) || !isFinite(reducedModel.logLikelihood)) return 1;
+            var chi = Math.max(0, 2 * (fullModel.logLikelihood - reducedModel.logLikelihood));
+            return chi > 0 ? 1 - jStat.chisquare.cdf(chi, 1) : 1;
+        }
+
+        if (method.indexOf('backward') === 0) {
+            var step = 0;
+            while (selectedIdx.length > 0) {
+                step++;
+                var fullModel = runModel(selectedIdx);
+                if (!fullModel) break;
+
+                var worstP = -1, worstIdx = -1, criterion = useLR ? 'LR p' : 'Wald p';
+                selectedIdx.forEach(function(origIdx, pos) {
+                    var pVal;
+                    if (useLR) {
+                        var reducedIdx = selectedIdx.filter(function(i) { return i !== origIdx; });
+                        pVal = lrPValue(fullModel, runModel(reducedIdx));
+                    } else {
+                        var coef = fullModel.coefficients[pos + 1];
+                        pVal = coef && isFinite(coef.p) ? coef.p : 1;
+                    }
+                    if (pVal > worstP) { worstP = pVal; worstIdx = origIdx; }
+                });
+
+                if (worstIdx >= 0 && worstP > pOut) {
+                    selectedIdx = selectedIdx.filter(function(i) { return i !== worstIdx; });
+                    steps.push({
+                        Step: step,
+                        Action: 'Removed',
+                        Variable: allIVNames[worstIdx],
+                        Criterion: criterion + ' > ' + pOut,
+                        'p-value': Stats.formatPValue(worstP),
+                        '-2LL': fmt(-2 * fullModel.logLikelihood),
+                        'Remaining Vars': selectedIdx.map(function(i) { return allIVNames[i]; }).join(', ')
+                    });
+                } else {
+                    steps.push({
+                        Step: step,
+                        Action: 'Final Model',
+                        Variable: '-',
+                        Criterion: 'All ' + criterion + ' <= ' + pOut,
+                        'p-value': worstP >= 0 ? Stats.formatPValue(worstP) : 'N/A',
+                        '-2LL': fmt(-2 * fullModel.logLikelihood),
+                        'Remaining Vars': selectedIdx.map(function(i) { return allIVNames[i]; }).join(', ')
+                    });
+                    break;
+                }
+            }
+        } else {
+            var stepF = 0;
+            while (remaining.length > 0) {
+                stepF++;
+                var baseModel = runModel(selectedIdx);
+                var bestP = 1, bestIdx = -1, bestModel = null, criterionF = useLR ? 'LR p' : 'Wald p';
+
+                remaining.forEach(function(origIdx) {
+                    var tryIdx = selectedIdx.concat([origIdx]);
+                    var model = runModel(tryIdx);
+                    if (!model) return;
+                    var pVal = useLR ? lrPValue(model, baseModel) :
+                        (model.coefficients[model.coefficients.length - 1] && isFinite(model.coefficients[model.coefficients.length - 1].p) ? model.coefficients[model.coefficients.length - 1].p : 1);
+                    if (pVal < bestP) { bestP = pVal; bestIdx = origIdx; bestModel = model; }
+                });
+
+                if (bestIdx >= 0 && bestP <= pIn) {
+                    selectedIdx.push(bestIdx);
+                    remaining = remaining.filter(function(i) { return i !== bestIdx; });
+                    steps.push({
+                        Step: stepF,
+                        Action: 'Entered',
+                        Variable: allIVNames[bestIdx],
+                        Criterion: criterionF + ' <= ' + pIn,
+                        'p-value': Stats.formatPValue(bestP),
+                        '-2LL': bestModel ? fmt(-2 * bestModel.logLikelihood) : '',
+                        'Selected Vars': selectedIdx.map(function(i) { return allIVNames[i]; }).join(', ')
+                    });
+                } else {
+                    steps.push({
+                        Step: stepF,
+                        Action: 'Stopped',
+                        Variable: '-',
+                        Criterion: 'No variable with ' + criterionF + ' <= ' + pIn,
+                        'p-value': Stats.formatPValue(bestP),
+                        '-2LL': '',
+                        'Selected Vars': selectedIdx.map(function(i) { return allIVNames[i]; }).join(', ')
+                    });
+                    break;
+                }
+            }
+        }
+
+        return {
+            selectedVars: selectedIdx.map(function(i) { return allIVNames[i]; }),
+            selectedXData: selectedIdx.map(function(i) { return allXData[i]; }),
+            steps: steps
+        };
+    }
+
+    function _hosmerLemeshow(yBinary, probabilities, requestedGroups) {
+        if (!yBinary || !probabilities || yBinary.length !== probabilities.length || yBinary.length < 5) return null;
+        var pairs = [];
+        for (var i = 0; i < yBinary.length; i++) {
+            var y = Number(yBinary[i]), p = Number(probabilities[i]);
+            if (isFinite(y) && isFinite(p)) pairs.push({ y: y, p: p });
+        }
+        if (pairs.length < 5) return null;
+        pairs.sort(function(a, b) { return a.p - b.p; });
+
+        var g = Math.min(requestedGroups || 10, Math.floor(pairs.length / 2));
+        if (g < 3) return null;
+        var groups = [];
+        var chi = 0;
+        for (var gi = 0; gi < g; gi++) {
+            var start = Math.floor(gi * pairs.length / g);
+            var end = Math.floor((gi + 1) * pairs.length / g);
+            var chunk = pairs.slice(start, end);
+            if (chunk.length === 0) continue;
+            var obsEvent = chunk.reduce(function(a, r) { return a + r.y; }, 0);
+            var expEvent = chunk.reduce(function(a, r) { return a + r.p; }, 0);
+            var obsNon = chunk.length - obsEvent;
+            var expNon = chunk.length - expEvent;
+            if (expEvent > 0) chi += Math.pow(obsEvent - expEvent, 2) / expEvent;
+            if (expNon > 0) chi += Math.pow(obsNon - expNon, 2) / expNon;
+            groups.push({
+                Group: gi + 1,
+                N: chunk.length,
+                'Min Prob.': fmt(chunk[0].p),
+                'Max Prob.': fmt(chunk[chunk.length - 1].p),
+                'Observed Event': fmt(obsEvent, 0),
+                'Expected Event': fmt(expEvent),
+                'Observed Non-event': fmt(obsNon, 0),
+                'Expected Non-event': fmt(expNon)
+            });
+        }
+        var df = groups.length - 2;
+        if (df <= 0) return null;
+        var pVal = 1 - jStat.chisquare.cdf(chi, df);
+        return { chiSquare: chi, df: df, p: pVal, groups: groups };
     }
 
     // =========================================================================
